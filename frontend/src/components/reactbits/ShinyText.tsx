@@ -18,7 +18,7 @@ export default function ShinyText({
   return (
     <span
       className={cn(
-        "inline-block bg-clip-text text-transparent bg-[linear-gradient(110deg,#a1a1aa,45%,#ffffff,55%,#a1a1aa)] bg-[length:250%_100%]",
+        "inline-block bg-clip-text text-transparent bg-[linear-gradient(110deg,#0f172a,35%,#059669,50%,#0f172a,65%)] bg-[length:250%_100%]",
         !disabled && "animate-[shine_var(--speed)_infinite_linear]",
         className
       )}
