@@ -48,7 +48,7 @@ export default function Hyperspeed({ className = "", speed = 1.6, theme = "dark"
     }
 
     const streaks: Streak[] = [];
-    const count = 110;
+    const count = 130;
 
     // Traffic colors: in light mode use rich, vivid tones so they don't wash out on white
     const leftColors = theme === "light"
@@ -60,12 +60,12 @@ export default function Hyperspeed({ className = "", speed = 1.6, theme = "dark"
 
     for (let i = 0; i < count; i++) {
       const side = Math.random() > 0.48 ? "left" : "right";
-      const laneOffset = side === "left" ? -Math.random() * 500 - 40 : Math.random() * 500 + 40;
+      const laneOffset = side === "left" ? -Math.random() * 620 - 30 : Math.random() * 620 + 30;
       streaks.push({
         x: laneOffset,
-        y: Math.random() * 120 + 80, // road elevation
-        z: Math.random() * 1600 + 50,
-        len: Math.random() * 120 + 50,
+        y: Math.random() * 150 + 60, // road elevation
+        z: Math.random() * 1600 + 40,
+        len: Math.random() * 140 + 50,
         color:
           side === "left"
             ? leftColors[Math.floor(Math.random() * leftColors.length)]
@@ -81,7 +81,7 @@ export default function Hyperspeed({ className = "", speed = 1.6, theme = "dark"
 
     const draw = () => {
       tick++;
-      const horizonY = height * 0.42;
+      const horizonY = height * 0.40;
       const centerX = width / 2;
 
       // Background with smooth motion blur trail
@@ -95,14 +95,14 @@ export default function Hyperspeed({ className = "", speed = 1.6, theme = "dark"
       ctx.lineWidth = 1.8;
       ctx.beginPath();
       ctx.moveTo(centerX - 15, horizonY);
-      ctx.lineTo(centerX - width * 0.55, height);
+      ctx.lineTo(centerX - width * 0.6, height);
       ctx.stroke();
 
       // Vanishing Road Edge Right
       ctx.strokeStyle = theme === "light" ? "rgba(2, 132, 199, 0.4)" : "rgba(56, 189, 248, 0.35)";
       ctx.beginPath();
       ctx.moveTo(centerX + 15, horizonY);
-      ctx.lineTo(centerX + width * 0.55, height);
+      ctx.lineTo(centerX + width * 0.6, height);
       ctx.stroke();
 
       // Highway Center Dashed Line
@@ -123,7 +123,7 @@ export default function Hyperspeed({ className = "", speed = 1.6, theme = "dark"
 
         if (s.z <= 20) {
           s.z = 1600;
-          s.x = s.side === "left" ? -Math.random() * 520 - 40 : Math.random() * 520 + 40;
+          s.x = s.side === "left" ? -Math.random() * 620 - 30 : Math.random() * 620 + 30;
         }
 
         // Perspective projection
@@ -168,9 +168,9 @@ export default function Hyperspeed({ className = "", speed = 1.6, theme = "dark"
   return (
     <div className={cn("absolute inset-0 pointer-events-none overflow-hidden", className)}>
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block" />
-      {/* Soft gradient fade so content remains perfectly readable */}
+      {/* Soft gradient fade so content remains readable without blocking the bottom */}
       {theme === "light" ? (
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-slate-50/90 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white/20 pointer-events-none" />
       ) : (
         <>
           <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/80 via-transparent to-zinc-950 pointer-events-none" />

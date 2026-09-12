@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import ScrollReset from "@/components/ScrollReset";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,7 +15,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id" className="h-full antialiased">
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">
+        <ScrollReset />
+        {children}
+      </body>
     </html>
   );
 }
