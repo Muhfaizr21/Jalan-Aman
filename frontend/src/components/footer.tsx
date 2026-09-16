@@ -23,20 +23,19 @@ export default function Footer() {
             <p className="text-neutral-400 text-xs sm:text-sm leading-relaxed max-w-sm mt-2">
               Navigasi keselamatan malam hari. Memandu pengendara memilih rute terang, menghindari zona rawan kejahatan, dan memastikan Anda tiba di rumah dengan selamat.
             </p>
-
-            {/* Operational System Indicator */}
-            <div className="flex items-center gap-2 mt-5 text-xs text-neutral-400 font-mono">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Sistem Proteksi Rute Aktif 24 Jam</span>
-            </div>
           </div>
 
           {/* Navigasi Links */}
           <div>
-            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-white mb-3.5">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-neutral-300 mb-3.5">
               Navigasi
             </h4>
             <ul className="space-y-2.5 text-xs text-neutral-400">
+              <li>
+                <Link href="#urgensi" className="hover:text-white transition-colors">
+                  Data Krisis
+                </Link>
+              </li>
               <li>
                 <Link href="#rute" className="hover:text-white transition-colors">
                   Simulasi Rute Teraman
@@ -45,6 +44,11 @@ export default function Footer() {
               <li>
                 <Link href="#arsitektur" className="hover:text-white transition-colors">
                   Logika Keselamatan
+                </Link>
+              </li>
+              <li>
+                <Link href="#skenario" className="hover:text-white transition-colors">
+                  Skenario Lapangan
                 </Link>
               </li>
               <li>
@@ -58,6 +62,11 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="#roadmap" className="hover:text-white transition-colors">
+                  Roadmap Pengembangan
+                </Link>
+              </li>
+              <li>
                 <Link href="#faq" className="hover:text-white transition-colors">
                   Tanya Jawab
                 </Link>
@@ -67,7 +76,7 @@ export default function Footer() {
 
           {/* Aplikasi Links */}
           <div>
-            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-white mb-3.5">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-neutral-300 mb-3.5">
               Aplikasi
             </h4>
             <ul className="space-y-2.5 text-xs text-neutral-400">
@@ -94,7 +103,7 @@ export default function Footer() {
 
           {/* Inisiatif Links */}
           <div>
-            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-white mb-3.5">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-neutral-300 mb-3.5">
               Inisiatif
             </h4>
             <ul className="space-y-2.5 text-xs text-neutral-400">

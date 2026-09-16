@@ -13,38 +13,38 @@ interface FAQItem {
 const FAQ_ITEMS: FAQItem[] = [
   {
     id: "data-source",
-    tag: "Akurasi Data",
-    question: "Bagaimana data zona rawan kejahatan diperoleh?",
+    tag: "Akurasi Data & AI",
+    question: "Bagaimana sistem menentukan zona rawan kejahatan?",
     answer:
-      "Data diolah dari laporan resmi kepolisian, data spasial kejadian kriminalitas yang bersifat publik, dan verifikasi komunitas warga setempat. Data ini diperbarui secara berkala setiap 48 jam untuk memastikan akurasi terbaru.",
+      "JalanAman memadukan tiga sumber data komprehensif: laporan insiden crowdsourcing real-time, data spasial historis tindak kriminal kepolisian (Bareskrim Polri), serta fitur lingkungan urban seperti densitas lampu penerangan jalan (PJU) dan koridor komersial 24 jam. Data ini diolah menggunakan algoritma DBSCAN untuk pengelompokan titik rawan secara dinamis dan Random Forest dengan tingkat akurasi prediksi risiko hingga 89,7%.",
+  },
+  {
+    id: "routing-logic",
+    tag: "Algoritma Pathfinding",
+    question: "Bagaimana cara kerja algoritma dalam memilih rute teraman?",
+    answer:
+      "Berbeda dengan navigator biasa yang hanya mengoptimasi jarak tempuh terpendek (Cost = Jarak), JalanAman menggunakan algoritma Modified A* Pathfinding yang membebani setiap ruas jalan dengan penalti risiko kejahatan. Algoritma secara otomatis mengalihkan rute menjauhi gang gelap menuju jalan protokol berlampu terang dan dekat pos pengamanan, dengan kompensasi waktu tempuh yang sangat wajar (rata-rata selisih 2–3 menit demi kepastian selamat).",
   },
   {
     id: "privacy-location",
-    tag: "Privasi & GPS",
-    question: "Apa yang terjadi dengan data lokasi saya?",
+    tag: "Privasi & Zero Tracking",
+    question: "Apakah data lokasi dan pergerakan saya aman dan dirahasiakan?",
     answer:
-      "Lokasi Anda hanya digunakan saat fitur pelacakan aktif dan tidak disimpan di server setelah sesi berakhir. Data GPS dikirim secara terenkripsi hanya ke kontak darurat yang Anda tetapkan sendiri. Kami tidak pernah membagikan data lokasi ke pihak ketiga tanpa izin eksplisit.",
+      "Sangat aman. Kami menerapkan prinsip Privacy by Design: tidak ada pelacakan lokasi di latar belakang saat aplikasi tidak bernavigasi, tanpa pembuatan profil pengguna untuk kepentingan iklan komersial, dan seluruh telemetri darurat diproteksi dengan enkripsi tingkat tinggi. Posisi real-time Anda hanya disiarkan saat Anda secara aktif mengaktifkan navigasi atau memicu Protokol Darurat SOS.",
   },
   {
     id: "offline-mode",
-    tag: "Konektivitas",
-    question: "Apakah aplikasi ini tetap berfungsi tanpa sinyal internet?",
+    tag: "Ketahanan Sinyal",
+    question: "Apakah aplikasi tetap berfungsi saat sinyal seluler lemah atau hilang?",
     answer:
-      "Fitur navigasi dasar dan peta offline akan tetap berfungsi. Namun, fitur SOS dan pelacakan real-time memerlukan koneksi data aktif. Jika sinyal hilang di tengah penggunaan, aplikasi akan menyimpan koordinat terakhir dan mengirimkannya saat koneksi kembali.",
+      "Ya. Data grafik jalan, klaster bahaya statis, dan direktori pos shelter darurat di-cache secara lokal di perangkat Anda. Jika koneksi internet terputus saat perjalanan, algoritma navigasi tetap memandu Anda di koridor aman. Untuk tombol SOS, sistem akan memprioritaskan transmisi SMS darurat satelit saat koneksi data seluler tidak tersedia.",
   },
   {
-    id: "battery-usage",
-    tag: "Efisiensi Daya",
-    question: "Berapa baterai yang dikonsumsi saat menggunakan fitur pelacakan?",
+    id: "standalone-system",
+    tag: "Solusi Mandiri",
+    question: "Apakah JalanAman adalah aplikasi navigasi mandiri?",
     answer:
-      "Penggunaan GPS terus-menerus dengan layar menyala dapat menguras baterai sekitar 15-25% per jam. Disarankan untuk menggunakan mode hemat baterai dan membawa power bank saat perjalanan malam berkepanjangan.",
-  },
-  {
-    id: "google-maps-integration",
-    tag: "Integrasi Navigasi",
-    question: "Apakah JalanAman menggantikan aplikasi navigasi seperti Google Maps?",
-    answer:
-      "Tidak. JalanAman berfungsi sebagai lapisan keamanan tambahan yang mengoreksi dan memodifikasi rute yang diberikan oleh navigator lain berdasarkan parameter keselamatan. Kami menyarankan penggunaan bersamaan dengan aplikasi navigasi yang sudah Anda kenal.",
+      "Ya, JalanAman adalah platform navigasi turn-by-turn mandiri yang dirancang khusus untuk mobilitas malam hari di Indonesia. Anda dapat menggunakannya sebagai aplikasi utama saat berkendara pulang larut, atau sebagai pembanding rute cerdas guna memastikan rute yang Anda pilih bebas dari ancaman kejahatan jalanan.",
   },
 ];
 
@@ -59,10 +59,6 @@ export default function FAQAccordion() {
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
       {/* Left Column: Context & Summary */}
       <div className="lg:col-span-5 lg:sticky lg:top-24">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.06] border border-white/[0.1] text-[11px] sm:text-xs mb-3 font-mono font-semibold text-neutral-300 shadow-2xs">
-          <HelpCircle className="w-3.5 h-3.5 text-white" />
-          <span>PUSAT INFORMASI</span>
-        </div>
         <h2 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight mb-3 sm:mb-4">
           Pertanyaan Umum & Transparansi Data
         </h2>
@@ -122,11 +118,11 @@ export default function FAQAccordion() {
                 aria-expanded={isOpen}
               >
                 <div className="flex items-start sm:items-center gap-2.5 sm:gap-3.5">
-                  <span className="font-mono text-xs font-bold text-neutral-500 shrink-0 mt-0.5 sm:mt-0">
+                  <span className="text-xs font-bold text-neutral-500 shrink-0 mt-0.5 sm:mt-0">
                     {itemNumber}
                   </span>
                   <div>
-                    <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-neutral-400 block mb-1">
+                    <span className="text-xs font-medium text-neutral-400 block mb-1">
                       {item.tag}
                     </span>
                     <h3 className="text-xs sm:text-base font-bold text-white group-hover:text-neutral-200 transition-colors pr-2">

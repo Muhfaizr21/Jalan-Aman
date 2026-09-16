@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { ShieldCheck, AlertOctagon, Navigation, MapPin, Eye, CheckCircle2, ShieldAlert } from "lucide-react";
-import DecryptedText from "./reactbits/DecryptedText";
 
 export default function RouteVisualizer() {
   const [activeTab, setActiveTab] = useState<"safe" | "fast">("safe");
@@ -12,10 +11,6 @@ export default function RouteVisualizer() {
       {/* Header bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-4 sm:pb-6 border-b border-white/[0.08]">
         <div>
-          <div className="flex items-center gap-2 text-xs font-mono text-neutral-400 mb-1 font-semibold">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <DecryptedText text="SIMULASI ALGORITMA RUTE TERAMAN" speed={30} />
-          </div>
           <h3 className="text-lg sm:text-xl font-bold text-white">Komparasi Rute Perjalanan Malam Hari</h3>
         </div>
 
@@ -63,7 +58,7 @@ export default function RouteVisualizer() {
 
             {/* Red Danger Zone (Zone Rawan Kejahatan) */}
             <circle cx="280" cy="120" r="55" fill="rgba(244, 63, 94, 0.12)" stroke="rgba(244, 63, 94, 0.3)" strokeWidth="2" strokeDasharray="4 4" />
-            <text x="240" y="125" fill="#fb7185" fontSize="11" fontFamily="monospace" fontWeight="bold">
+            <text x="242" y="124" fill="#fb7185" fontSize="11" fontWeight="bold">
               ZONA RAWAN
             </text>
 
@@ -75,7 +70,6 @@ export default function RouteVisualizer() {
                 stroke="#38bdf8"
                 strokeWidth="5"
                 strokeLinecap="round"
-                className="animate-pulse"
               />
             ) : (
               // Fast but dangerous route through dark zone
@@ -123,7 +117,7 @@ export default function RouteVisualizer() {
               <>
                 <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0" />
                 <div>
-                  <span className="font-bold text-rose-300 block">Skor Aman: 38/100 (Beresiko Kriminalitas)</span>
+                  <span className="font-bold text-rose-300 block">Skor Keamanan: 38/100 (Tinggi Risiko Ambush)</span>
                   <span className="text-neutral-400 text-[11px]">Jalan pintas gelap minim lampu & 3 riwayat kasus begal larut malam.</span>
                 </div>
               </>
@@ -134,7 +128,7 @@ export default function RouteVisualizer() {
         {/* Route Details Card */}
         <div className="rounded-2xl bg-neutral-950/80 border border-white/[0.08] p-5 flex flex-col justify-between shadow-xl">
           <div>
-            <span className="text-[11px] font-mono uppercase tracking-wider text-neutral-500 font-semibold">Perbandingan Logika Rute</span>
+            <span className="text-xs font-semibold text-neutral-400">Perbandingan Logika Rute</span>
             <h4 className="text-base font-bold text-white mt-1">
               {activeTab === "safe" ? "Rekomendasi JalanAman" : "Navigasi Standar Aplikasi Lain"}
             </h4>
