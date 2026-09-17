@@ -3,9 +3,10 @@
 import React, { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { 
-  Layers, Map, Filter, RefreshCw, Settings2, Play, CheckCircle2, History, Info, Search
+  Layers, Map, Filter, RefreshCw, Settings2, Play, CheckCircle2, History, Info, Search, Globe
 } from 'lucide-react';
 import { mockClusters } from './mockData';
+import { downloadGeoJSONFile } from '../../lib/geoJsonExport';
 
 // Dynamically import the map to avoid SSR issues with leaflet
 const ClusterMap = dynamic(() => import('./ClusterMap'), {
@@ -46,6 +47,14 @@ export function ClusterManagementView() {
           <p className="text-xs sm:text-sm text-zinc-400">Visualisasi hasil pengelompokan titik rawan berbasis kepadatan (Density-Based Spatial Clustering).</p>
         </div>
         <div className="flex items-center gap-3 self-start sm:self-auto">
+          <button
+            onClick={() => downloadGeoJSONFile('jalanaman_dbscan_clusters.geojson', 'clusters')}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-xs font-medium border border-emerald-500/50 shadow-md transition-colors"
+            title="Download GeoJSON untuk di-upload ke app.gis.co.id"
+          >
+            <Globe className="w-3.5 h-3.5 text-emerald-200" />
+            <span>Export GeoJSON (GIS)</span>
+          </button>
           <div className="flex items-center gap-2 bg-[#0a0a0a] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="text-zinc-300">DBSCAN Engine <span className="text-emerald-400 font-mono">Online</span></span>

@@ -56,4 +56,14 @@ body {
 
 html {
   scroll-behavior: smooth;
-}.dark-map-tiles { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
+}
+
+.maplibregl-map {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.maplibregl-canvas {
+  width: 100% !important;
+  height: 100% !important;
+}

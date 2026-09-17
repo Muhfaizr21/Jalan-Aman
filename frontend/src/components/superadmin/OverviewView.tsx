@@ -18,7 +18,8 @@ import {
   chartDataModel,
   chartDataWeekly
 } from './mockData';
-import { AlertTriangle, Map, BrainCircuit, Users, ShieldAlert, Activity, RefreshCw, Download, Server, ChevronRight } from 'lucide-react';
+import { AlertTriangle, Map, BrainCircuit, Users, ShieldAlert, Activity, RefreshCw, Download, Server, ChevronRight, Globe } from 'lucide-react';
+import { downloadGeoJSONFile } from '../../lib/geoJsonExport';
 
 const DemographicMap = dynamic(() => import('./DemographicMap'), { ssr: false, loading: () => <div className="w-full h-full bg-[#0a0a0a] animate-pulse rounded-lg border border-white/[0.05]" /> });
 
@@ -77,7 +78,17 @@ export function OverviewView() {
           <button className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-zinc-300 bg-[#0a0a0a] border border-white/[0.08] rounded-lg hover:bg-white/[0.04] transition-colors">
             <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Retrain Model
           </button>
-          <button className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors border border-blue-500/50">
+          <button 
+            onClick={() => downloadGeoJSONFile('jalanaman_gis_data.geojson', 'all')}
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors border border-emerald-500/50 shadow-lg shadow-emerald-950/40"
+            title="Download GeoJSON untuk di-upload ke app.gis.co.id"
+          >
+            <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-200" /> Export GeoJSON (GIS)
+          </button>
+          <button 
+            onClick={() => downloadGeoJSONFile('jalanaman_harian.geojson', 'all')}
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors border border-blue-500/50"
+          >
             <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Export Harian
           </button>
         </div>

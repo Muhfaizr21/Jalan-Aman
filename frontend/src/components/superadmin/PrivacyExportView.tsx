@@ -34,6 +34,7 @@ import {
   UserConsentMetrics 
 } from '../../types/superadmin';
 import { formatNumber } from '../../lib/utils';
+import { downloadGeoJSONFile } from '../../lib/geoJsonExport';
 
 export function PrivacyExportView() {
   const [activeTab, setActiveTab] = useState<'export' | 'retention' | 'audit' | 'consent'>('export');
@@ -87,6 +88,11 @@ export function PrivacyExportView() {
 
       setAccessLogs(prev => [newLog, ...prev]);
       setExportJustification('');
+
+      if (exportFormat === 'geojson') {
+        downloadGeoJSONFile(`jalanaman_${selectedDataset}.geojson`, selectedDataset === 'dbscan_clusters' ? 'clusters' : 'all');
+      }
+
       showNotice('success', `File agregat ${selectedDataset}.${exportFormat} berhasil diunduh tanpa data pribadi (100% PII Sanitize).`);
     }, 1500);
   };

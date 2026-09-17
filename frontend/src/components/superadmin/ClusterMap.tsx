@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Tooltip, Circle, useMap } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
+import React, { useEffect, useRef } from 'react';
+import * as maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import { circlegeoEsriStyle } from '../../lib/gisMapStyle';
 import { mockIncidents, mockClusters } from './mockData';
 
 interface ClusterMapProps {
@@ -12,15 +13,6 @@ interface ClusterMapProps {
   center: { lat: number; lng: number };
 }
 
-function MapController({ center }: { center: { lat: number; lng: number } }) {
-  const map = useMap();
-  useEffect(() => {
-    map.flyTo([center.lat, center.lng], map.getZoom() > 12 ? map.getZoom() : 13, { duration: 1.5 });
-  }, [center, map]);
-  return null;
-}
-
-// Mock Police Historical Data Zones (Red Zones)
 const mockPoliceZones = [
   { id: 'POL-1', center: { lat: -6.1950, lng: 106.8329 }, radius: 400, name: 'Zona Rawan Cikini', cases: 24 },
   { id: 'POL-2', center: { lat: -6.241586, lng: 106.823547 }, radius: 600, name: 'Blok M Area', cases: 45 },
@@ -28,130 +20,187 @@ const mockPoliceZones = [
 ];
 
 export default function ClusterMap({ showRaw, showClusters, showPolice, center }: ClusterMapProps) {
-  // Determine danger level color for clusters
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const markersRef = useRef<maplibregl.Marker[]>([]);
+
   const getDangerColor = (level: string) => {
     switch (level) {
-      case 'Critical': return '#ef4444'; // Red-500
-      case 'High': return '#f97316'; // Orange-500
-      case 'Medium': return '#eab308'; // Yellow-500
-      default: return '#3b82f6'; // Blue-500
+      case 'Critical': return '#ef4444';
+      case 'High': return '#f97316';
+      case 'Medium': return '#eab308';
+      default: return '#3b82f6';
     }
   };
 
+  // Init map
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: circlegeoEsriStyle as any,
+      center: [center.lng, center.lat],
+      zoom: 12,
+      pitch: 35,
+      maxPitch: 85,
+    });
+
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+    mapRef.current = map;
+
+    map.on('load', () => {
+      map.resize();
+    });
+
+    const timers = [
+      setTimeout(() => map.resize(), 100),
+      setTimeout(() => map.resize(), 400),
+    ];
+
+    const resizeObserver = new ResizeObserver(() => {
+      map.resize();
+    });
+    if (mapContainerRef.current) {
+      resizeObserver.observe(mapContainerRef.current);
+    }
+
+    return () => {
+      timers.forEach(clearTimeout);
+      resizeObserver.disconnect();
+      map.remove();
+    };
+  }, []);
+
+  // Update center
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    map.flyTo({
+      center: [center.lng, center.lat],
+      zoom: map.getZoom() > 12 ? map.getZoom() : 13,
+      duration: 1200,
+    });
+  }, [center]);
+
+  // Update Layers / Markers
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    markersRef.current.forEach((m) => m.remove());
+    markersRef.current = [];
+
+    // 1. Police Hotspots
+    if (showPolice) {
+      mockPoliceZones.forEach((zone) => {
+        const el = document.createElement('div');
+        el.style.cssText = `
+          width: 32px;
+          height: 32px;
+          border-radius: 9999px;
+          background-color: rgba(220, 38, 38, 0.25);
+          border: 1.5px dashed #ef4444;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+        `;
+        el.innerHTML = `<span style="font-size: 11px;">🚨</span>`;
+
+        const popup = new maplibregl.Popup({ offset: 10, closeButton: false }).setHTML(`
+          <div style="font-family: sans-serif; padding: 6px; font-size: 11px; background: #0c0c0e; color: #fff; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="color: #f43f5e; font-weight: bold;">${zone.name}</div>
+            <div style="color: #a1a1aa; font-size: 10px;">Data Kepolisian: ${zone.cases} Kasus</div>
+          </div>
+        `);
+
+        const marker = new maplibregl.Marker({ element: el })
+          .setLngLat([zone.center.lng, zone.center.lat])
+          .setPopup(popup)
+          .addTo(map);
+
+        markersRef.current.push(marker);
+      });
+    }
+
+    // 2. DBSCAN Clusters
+    if (showClusters) {
+      mockClusters.forEach((cluster) => {
+        const color = getDangerColor(cluster.dangerLevel);
+        const el = document.createElement('div');
+        el.style.cssText = `
+          width: 28px;
+          height: 28px;
+          border-radius: 9999px;
+          background-color: ${color};
+          opacity: 0.85;
+          border: 2px solid #ffffff;
+          box-shadow: 0 0 12px ${color};
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #000;
+          font-weight: bold;
+          font-size: 10px;
+          cursor: pointer;
+        `;
+        el.textContent = `${cluster.incidentCount}`;
+
+        const popup = new maplibregl.Popup({ offset: 12, closeButton: false }).setHTML(`
+          <div style="font-family: sans-serif; padding: 8px; font-size: 11px; background: #0c0c0e; color: #fff; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); min-width: 160px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span style="font-weight: bold;">Klaster ${cluster.id}</span>
+              <span style="background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 4px; font-size: 9px;">${cluster.dangerLevel}</span>
+            </div>
+            <div style="color: #a1a1aa; font-size: 10px;">Total Insiden: <b>${cluster.incidentCount} Kasus</b></div>
+            <div style="color: #a1a1aa; font-size: 10px;">Radius Pengaruh: <b>${cluster.radius}m</b></div>
+          </div>
+        `);
+
+        const marker = new maplibregl.Marker({ element: el })
+          .setLngLat([cluster.center.lng, cluster.center.lat])
+          .setPopup(popup)
+          .addTo(map);
+
+        markersRef.current.push(marker);
+      });
+    }
+
+    // 3. Raw Incidents
+    if (showRaw) {
+      mockIncidents.forEach((inc) => {
+        const color = inc.status === 'Verified' ? '#10b981' : '#f59e0b';
+        const el = document.createElement('div');
+        el.style.cssText = `
+          width: 8px;
+          height: 8px;
+          border-radius: 9999px;
+          background-color: ${color};
+          border: 1px solid #ffffff;
+          cursor: pointer;
+        `;
+
+        const popup = new maplibregl.Popup({ offset: 8, closeButton: false }).setHTML(`
+          <div style="font-family: sans-serif; padding: 4px 6px; font-size: 10px; background: #0c0c0e; color: #fff; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="font-weight: 600;">${inc.category}</div>
+            <div style="color: #a1a1aa;">${inc.id} • ${inc.status}</div>
+          </div>
+        `);
+
+        const marker = new maplibregl.Marker({ element: el })
+          .setLngLat([inc.coordinates.lng, inc.coordinates.lat])
+          .setPopup(popup)
+          .addTo(map);
+
+        markersRef.current.push(marker);
+      });
+    }
+  }, [showRaw, showClusters, showPolice]);
+
   return (
     <div className="w-full h-full rounded-xl overflow-hidden bg-zinc-900 border border-white/[0.08] relative z-0">
-      <MapContainer 
-        center={[-6.2088, 106.8456]} // Jakarta
-        zoom={12} 
-        scrollWheelZoom={true}
-        className="w-full h-full z-0"
-        style={{ background: '#0a0a0a' }}
-      >
-        <MapController center={center} />
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          className="dark-map-tiles"
-        />
-
-        {/* Layer 3: Police Historical Data */}
-        {showPolice && mockPoliceZones.map((zone) => (
-          <Circle
-            key={zone.id}
-            center={[zone.center.lat, zone.center.lng]}
-            radius={zone.radius}
-            pathOptions={{
-              color: '#991b1b', // Red-800
-              fillColor: '#7f1d1d', // Red-900
-              fillOpacity: 0.3,
-              weight: 1,
-              dashArray: '4 4'
-            }}
-          >
-            <Tooltip 
-              direction="top" 
-              opacity={1} 
-              className="bg-[#050505] border border-white/10 text-white !rounded-lg"
-            >
-              <div className="font-sans px-1">
-                <p className="font-bold text-xs text-rose-500">{zone.name}</p>
-                <p className="text-[10px] text-zinc-400">Data Kepolisian 2022-2023</p>
-                <p className="text-xs font-mono mt-1">{zone.cases} Kasus Kejahatan</p>
-              </div>
-            </Tooltip>
-          </Circle>
-        ))}
-
-        {/* Layer 2: DBSCAN Clusters */}
-        {showClusters && mockClusters.map((cluster) => (
-          <Circle
-            key={cluster.id}
-            center={[cluster.center.lat, cluster.center.lng]}
-            radius={cluster.radius} // in meters
-            pathOptions={{
-              color: getDangerColor(cluster.dangerLevel),
-              fillColor: getDangerColor(cluster.dangerLevel),
-              fillOpacity: 0.4,
-              weight: 2
-            }}
-          >
-            <Tooltip 
-              direction="top" 
-              opacity={1} 
-              className="bg-[#050505] border border-white/10 text-white !rounded-lg"
-            >
-              <div className="font-sans px-1 w-48">
-                <div className="flex justify-between items-center mb-1">
-                  <p className="font-bold text-sm text-white">Klaster {cluster.id}</p>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 font-medium">
-                    {cluster.dangerLevel}
-                  </span>
-                </div>
-                <div className="space-y-1 mt-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-zinc-400">Total Insiden</span>
-                    <span className="text-white font-mono">{cluster.incidentCount}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-zinc-400">Radius</span>
-                    <span className="text-white font-mono">{cluster.radius}m</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-zinc-400">Pusat</span>
-                    <span className="text-white font-mono text-[10px]">{cluster.center.lat.toFixed(3)}, {cluster.center.lng.toFixed(3)}</span>
-                  </div>
-                </div>
-              </div>
-            </Tooltip>
-          </Circle>
-        ))}
-
-        {/* Layer 1: Raw Incidents */}
-        {showRaw && mockIncidents.map((inc) => (
-          <CircleMarker
-            key={inc.id}
-            center={[inc.coordinates.lat, inc.coordinates.lng]}
-            radius={3}
-            pathOptions={{
-              color: inc.status === 'Verified' ? '#10b981' : '#f59e0b',
-              fillColor: inc.status === 'Verified' ? '#10b981' : '#f59e0b',
-              fillOpacity: 0.8,
-              weight: 1
-            }}
-          >
-            <Tooltip 
-              direction="auto" 
-              opacity={1} 
-              className="bg-[#050505] border border-white/10 text-white !rounded-lg"
-            >
-              <div className="font-sans px-1">
-                <p className="font-semibold text-xs text-white">{inc.category}</p>
-                <p className="text-[10px] text-zinc-400">{inc.id} - {inc.status}</p>
-              </div>
-            </Tooltip>
-          </CircleMarker>
-        ))}
-      </MapContainer>
+      <div ref={mapContainerRef} className="w-full h-full" style={{ minHeight: '400px' }} />
     </div>
   );
 }
