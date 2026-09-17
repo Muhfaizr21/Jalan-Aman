@@ -26,18 +26,18 @@ const PIE_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e'];
 
 function MetricCard({ title, value, icon: Icon, trend, trendUp }: any) {
   return (
-    <div className="bg-[#0a0a0a] border border-white/[0.08] rounded-xl p-5 flex flex-col gap-3 relative overflow-hidden group hover:border-white/[0.15] transition-colors">
-      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-        <Icon className="w-16 h-16" />
+    <div className="bg-[#0a0a0a] border border-white/[0.08] rounded-xl p-3.5 sm:p-5 flex flex-col gap-2 sm:gap-3 relative overflow-hidden group hover:border-white/[0.15] transition-colors">
+      <div className="absolute top-0 right-0 p-3 sm:p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+        <Icon className="w-12 h-12 sm:w-16 sm:h-16" />
       </div>
       <div className="flex items-center justify-between text-zinc-400 relative z-10">
-        <span className="text-sm font-medium">{title}</span>
-        <Icon className="w-4 h-4 text-zinc-500" />
+        <span className="text-xs sm:text-sm font-medium truncate">{title}</span>
+        <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-zinc-500 shrink-0" />
       </div>
-      <div className="flex items-end gap-3 relative z-10">
-        <span className="text-3xl font-semibold text-white tracking-tight">{value}</span>
+      <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2 relative z-10">
+        <span className="text-xl sm:text-2xl lg:text-3xl font-bold text-white tracking-tight">{value}</span>
         {trend && (
-          <span className={`text-xs font-medium mb-1 px-1.5 py-0.5 rounded-md ${trendUp ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+          <span className={`text-[10px] sm:text-xs font-medium px-1.5 py-0.5 rounded-md ${trendUp ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
             {trendUp ? '↑' : '↓'} {trend}
           </span>
         )}
@@ -73,23 +73,25 @@ export function OverviewView() {
           <h2 className="text-2xl font-bold tracking-tight text-white mb-1">Dashboard Command Center</h2>
           <p className="text-sm text-zinc-400">Ringkasan operasional, telemetri sistem, dan analitik crowdsourcing 5W1H.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-zinc-300 bg-[#0a0a0a] border border-white/[0.08] rounded-lg hover:bg-white/[0.04] transition-colors">
-            <RefreshCw className="w-4 h-4" /> Retrain Model
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <button className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-zinc-300 bg-[#0a0a0a] border border-white/[0.08] rounded-lg hover:bg-white/[0.04] transition-colors">
+            <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Retrain Model
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors border border-blue-500/50">
-            <Download className="w-4 h-4" /> Export Harian
+          <button className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors border border-blue-500/50">
+            <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Export Harian
           </button>
         </div>
       </div>
 
-      {/* 5 Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      {/* 5 Cards - 2 cols on mobile, 3 on tablet, 5 on desktop */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <MetricCard title="Total Insiden" value="1,240" icon={AlertTriangle} trend="12%" trendUp={false} />
         <MetricCard title="Klaster Aktif" value="14" icon={Map} trend="2" trendUp={false} />
         <MetricCard title="Akurasi Model" value="89.7%" icon={BrainCircuit} trend="1.2%" trendUp={true} />
         <MetricCard title="Pengguna Aktif" value="2,500" icon={Users} trend="18%" trendUp={true} />
-        <MetricCard title="Peringatan Kritis" value="3" icon={ShieldAlert} trend="1" trendUp={false} />
+        <div className="col-span-2 sm:col-span-1">
+          <MetricCard title="Peringatan Kritis" value="3" icon={ShieldAlert} trend="1" trendUp={false} />
+        </div>
       </div>
 
       {/* Bento Grid - Main Sections */}
@@ -139,7 +141,7 @@ export function OverviewView() {
                     </td>
                     <td className="px-5 py-4 text-zinc-400 max-w-[150px] truncate">{inc.locationName}</td>
                     <td className="px-5 py-4 text-right">
-                      <button className="text-blue-400 hover:text-blue-300 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">Review</button>
+                      <button className="text-blue-400 hover:text-blue-300 text-xs font-medium opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">Review</button>
                     </td>
                   </tr>
                 ))}

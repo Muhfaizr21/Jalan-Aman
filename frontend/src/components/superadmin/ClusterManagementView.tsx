@@ -38,14 +38,14 @@ export function ClusterManagementView() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-theme(spacing.20))] pb-6 gap-6">
+    <div className="flex flex-col min-h-[calc(100vh-80px)] lg:h-[calc(100vh-theme(spacing.20))] pb-6 gap-6">
       {/* Header */}
-      <div className="flex items-end justify-between shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 shrink-0">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-white mb-1">Dashboard Peta Klaster (DBSCAN)</h2>
-          <p className="text-sm text-zinc-400">Visualisasi hasil pengelompokan titik rawan berbasis kepadatan (Density-Based Spatial Clustering).</p>
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white mb-1">Dashboard Peta Klaster (DBSCAN)</h2>
+          <p className="text-xs sm:text-sm text-zinc-400">Visualisasi hasil pengelompokan titik rawan berbasis kepadatan (Density-Based Spatial Clustering).</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 self-start sm:self-auto">
           <div className="flex items-center gap-2 bg-[#0a0a0a] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="text-zinc-300">DBSCAN Engine <span className="text-emerald-400 font-mono">Online</span></span>
@@ -56,9 +56,9 @@ export function ClusterManagementView() {
       <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
         
         {/* Left Panel: Map */}
-        <div className="flex-1 rounded-xl relative overflow-hidden bg-[#0a0a0a] border border-white/[0.08] flex flex-col">
+        <div className="flex-1 rounded-xl relative overflow-hidden bg-[#0a0a0a] border border-white/[0.08] flex flex-col min-h-[420px] lg:min-h-0">
           {/* Map Controls Overlay - Left (Search) */}
-          <div className="absolute top-4 left-4 z-[1000] flex flex-col gap-2 w-56">
+          <div className="absolute top-3 left-3 z-[1000] flex flex-col gap-2 w-44 sm:w-56">
             <div className="bg-[#050505]/90 backdrop-blur-sm border border-white/[0.1] rounded-lg p-2 shadow-2xl flex flex-col gap-2">
               <div className="flex items-center gap-2 px-1">
                 <Search className="w-3 h-3 text-zinc-400" />
@@ -84,7 +84,7 @@ export function ClusterManagementView() {
           </div>
 
           {/* Map Controls Overlay - Right */}
-          <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2">
+          <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-2 max-w-[150px] sm:max-w-none">
             <div className="bg-[#050505]/90 backdrop-blur-sm border border-white/[0.1] rounded-lg p-2 shadow-2xl flex flex-col gap-1">
               <h4 className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 px-1">Toggle Layers</h4>
               <label className="flex items-center gap-2 text-xs text-white hover:bg-white/5 p-1 rounded cursor-pointer transition-colors">

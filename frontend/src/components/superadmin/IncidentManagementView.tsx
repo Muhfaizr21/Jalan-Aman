@@ -95,7 +95,7 @@ export function IncidentManagementView() {
       {/* Table */}
       <div className="bg-[#0a0a0a] border border-white/[0.08] rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
+          <table className="w-full text-left text-sm whitespace-nowrap min-w-[720px]">
             <thead className="bg-[#050505] text-zinc-400 border-b border-white/[0.05]">
               <tr>
                 <th className="px-5 py-4 w-12">
@@ -146,7 +146,7 @@ export function IncidentManagementView() {
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <span className="text-zinc-400 text-xs flex items-center gap-1">
+                      <span suppressHydrationWarning className="text-zinc-400 text-xs flex items-center gap-1">
                         <Clock className="w-3 h-3 text-zinc-600" /> 
                         {new Date(inc.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                       </span>
@@ -205,7 +205,7 @@ export function IncidentManagementView() {
             <div className="px-6 py-4 border-b border-white/[0.05] flex items-center justify-between bg-[#050505]">
               <div>
                 <h3 className="text-lg font-bold text-white">Detail Laporan {detailModal.id}</h3>
-                <p className="text-xs text-zinc-500 mt-1">Dilaporkan pada {new Date(detailModal.timestamp).toLocaleString('id-ID')}</p>
+                <p suppressHydrationWarning className="text-xs text-zinc-500 mt-1">Dilaporkan pada {new Date(detailModal.timestamp).toLocaleString('id-ID')}</p>
               </div>
               <button onClick={() => setDetailModal(null)} className="text-zinc-500 hover:text-white p-2 transition-colors">
                 <X className="w-5 h-5" />

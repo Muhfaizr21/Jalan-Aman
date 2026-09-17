@@ -1,0 +1,334 @@
+basePath: /api/v1
+definitions:
+  model.AuthResponse:
+    properties:
+      expires_at:
+        type: string
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/model.User'
+    type: object
+  model.Incident:
+    properties:
+      address:
+        type: string
+      category:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      latitude:
+        type: number
+      longitude:
+        type: number
+      reporter_id:
+        type: string
+      severity:
+        $ref: '#/definitions/model.IncidentSeverity'
+      status:
+        $ref: '#/definitions/model.IncidentStatus'
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  model.IncidentSeverity:
+    enum:
+    - Low
+    - Moderate
+    - High
+    - Critical
+    type: string
+    x-enum-varnames:
+    - SeverityLow
+    - SeverityModerate
+    - SeverityHigh
+    - SeverityCritical
+  model.IncidentStatus:
+    enum:
+    - Pending
+    - Verified
+    - Rejected
+    type: string
+    x-enum-varnames:
+    - StatusPending
+    - StatusVerified
+    - StatusRejected
+  model.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  model.User:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      role:
+        $ref: '#/definitions/model.UserRole'
+      status:
+        description: Active, Suspended
+        type: string
+      trust_score:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  model.UserRole:
+    enum:
+    - User
+    - Admin
+    - Superadmin
+    type: string
+    x-enum-varnames:
+    - RoleUser
+    - RoleAdmin
+    - RoleSuperadmin
+  response.APIResponse:
+    properties:
+      data: {}
+      errors: {}
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  view.IncidentResponse:
+    properties:
+      category:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      location:
+        $ref: '#/definitions/view.LocationView'
+      reported_at:
+        type: string
+      severity:
+        $ref: '#/definitions/model.IncidentSeverity'
+      status:
+        $ref: '#/definitions/model.IncidentStatus'
+      title:
+        type: string
+    type: object
+  view.LocationView:
+    properties:
+      address:
+        type: string
+      latitude:
+        type: number
+      longitude:
+        type: number
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: dev@jalanaman.id
+    name: Tim Pengembang JalanAman
+    url: https://github.com/Muhfaizr21/Jalan-Aman
+  description: Dokumentasi interaktif OpenAPI/Swagger untuk API Gateway JalanAman.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: https://github.com/Muhfaizr21/Jalan-Aman
+  title: JalanAman API Gateway
+  version: 1.0.0
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Autentikasi dengan email dan password, menghasilkan token JWT dan
+        cookie sesi
+      parameters:
+      - description: Kredensial Login
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AuthResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+      summary: Login Pengguna & Superadmin
+      tags:
+      - Authentication
+  /auth/logout:
+    post:
+      description: Menghapus cookie sesi autentikasi pengguna
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+      summary: Logout Pengguna
+      tags:
+      - Authentication
+  /auth/me:
+    get:
+      description: Mengambil profil pengguna/superadmin yang sedang login berdasarkan
+        token JWT
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.User'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Profil Pengguna Saat Ini
+      tags:
+      - Authentication
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Memeriksa ketersediaan API Gateway dan koneksi aktif ke database
+        PostgreSQL
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+      summary: Pemeriksaan Status Layanan & Database
+      tags:
+      - System & Health
+  /incidents:
+    get:
+      consumes:
+      - application/json
+      description: Mengambil seluruh catatan insiden yang dilaporkan masyarakat
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/view.IncidentResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+      summary: Daftar Seluruh Insiden
+      tags:
+      - Incidents
+    post:
+      consumes:
+      - application/json
+      description: Membuat dan mencatat laporan insiden jalan baru (begal, jalan rusak,
+        lampu padam, kecelakaan)
+      parameters:
+      - description: Data Laporan Insiden
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.Incident'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/view.IncidentResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+      summary: Laporkan Insiden Baru
+      tags:
+      - Incidents
+  /incidents/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Mengambil data spesifik insiden berdasarkan ID laporan
+      parameters:
+      - description: ID Insiden
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/view.IncidentResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+      summary: Detail Insiden Berdasarkan ID
+      tags:
+      - Incidents
+swagger: "2.0"
