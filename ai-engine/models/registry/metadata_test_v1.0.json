@@ -1,0 +1,23 @@
+{
+  "accuracy": 85.0,
+  "precision": 100.0,
+  "recall": 62.5,
+  "f1_score": 76.92,
+  "confusion_matrix": {
+    "true_positive": 5,
+    "false_positive": 0,
+    "false_negative": 3,
+    "true_negative": 12
+  },
+  "feature_importance": {
+    "incident_density_radius": 16.58,
+    "lighting_quality_score": 31.51,
+    "road_width_and_class": 10.08,
+    "time_window_risk": 15.29,
+    "police_historical_rate": 12.33,
+    "user_feedback_score": 14.21
+  },
+  "training_duration_seconds": 0.05,
+  "dataset_size": 100,
+  "version": "test_v1.0"
+}

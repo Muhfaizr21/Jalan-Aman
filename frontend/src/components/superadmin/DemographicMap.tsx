@@ -1,11 +1,9 @@
 'use client';
 
-import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Tooltip } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-
-// Fix leaflet icon issue in Next.js/React if marker is used, but we're using CircleMarker here
-import L from 'leaflet';
+import React, { useEffect, useRef } from 'react';
+import * as maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import { circlegeoEsriStyle } from '../../lib/gisMapStyle';
 
 const demographicData = [
   { id: 1, name: 'Kebayoran Baru', lat: -6.2382, lng: 106.8024, density: 85, type: 'High Trust' },
@@ -24,51 +22,70 @@ const getColor = (type: string) => {
 };
 
 export default function DemographicMap() {
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const markersRef = useRef<maplibregl.Marker[]>([]);
+
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: circlegeoEsriStyle as any,
+      center: [106.8456, -6.2088], // [lng, lat] Jakarta
+      zoom: 11,
+      pitch: 30,
+      maxPitch: 85,
+    });
+
+    mapRef.current = map;
+
+    // Add markers
+    demographicData.forEach((region) => {
+      const color = getColor(region.type);
+      const size = Math.max(region.density / 3, 16);
+
+      const el = document.createElement('div');
+      el.style.cssText = `
+        width: ${size}px;
+        height: ${size}px;
+        border-radius: 9999px;
+        background-color: ${color};
+        opacity: 0.85;
+        border: 2px solid #ffffff;
+        box-shadow: 0 0 10px ${color};
+        cursor: pointer;
+      `;
+
+      const popup = new maplibregl.Popup({ offset: 12, closeButton: false }).setHTML(`
+        <div style="font-family: sans-serif; padding: 6px; font-size: 11px; background: #0c0c0e; color: #fff; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+          <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">${region.name}</div>
+          <div style="color: #a1a1aa; font-size: 10px;">Status: <span style="color:${color}; font-weight:600;">${region.type}</span></div>
+          <div style="color: #a1a1aa; font-size: 10px;">Aktivitas: ${region.density} Laporan</div>
+        </div>
+      `);
+
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat([region.lng, region.lat])
+        .setPopup(popup)
+        .addTo(map);
+
+      markersRef.current.push(marker);
+    });
+
+    return () => {
+      markersRef.current.forEach((m) => m.remove());
+      map.remove();
+    };
+  }, []);
+
   return (
-    <div className="w-full h-full rounded-lg overflow-hidden bg-zinc-900/50">
-      <MapContainer 
-        center={[-6.2088, 106.8456]} // Jakarta
-        zoom={11} 
-        scrollWheelZoom={false}
-        className="w-full h-full z-0"
-        style={{ background: '#0a0a0a' }}
-      >
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          className="dark-map-tiles"
-        />
-        {demographicData.map((region) => (
-          <CircleMarker
-            key={region.id}
-            center={[region.lat, region.lng]}
-            pathOptions={{
-              color: getColor(region.type),
-              fillColor: getColor(region.type),
-              fillOpacity: 0.6,
-              weight: 2
-            }}
-            radius={Math.max(region.density / 4, 8)}
-          >
-            <Tooltip 
-              direction="top" 
-              offset={[0, -10]} 
-              opacity={1} 
-              className="bg-[#050505] border border-white/10 text-white !rounded-lg"
-            >
-              <div className="font-sans px-1">
-                <p className="font-semibold text-sm">{region.name}</p>
-                <p className="text-xs text-zinc-400">Status: {region.type}</p>
-                <p className="text-xs text-zinc-400">Aktivitas: {region.density} Laporan</p>
-              </div>
-            </Tooltip>
-          </CircleMarker>
-        ))}
-      </MapContainer>
+    <div className="w-full h-full rounded-lg overflow-hidden bg-zinc-900/50 relative z-0">
+      <div ref={mapContainerRef} className="w-full h-full" style={{ minHeight: '350px' }} />
       
       {/* Legend */}
-      <div className="absolute bottom-4 left-4 z-[1000] bg-[#050505]/90 border border-white/[0.08] p-3 rounded-lg backdrop-blur-sm shadow-xl">
-        <h4 className="text-xs font-semibold text-zinc-400 mb-2 uppercase tracking-wider">Indeks Kepercayaan</h4>
+      <div className="absolute bottom-4 left-4 z-[10] bg-[#050505]/90 border border-white/[0.08] p-3 rounded-lg backdrop-blur-sm shadow-xl">
+        <h4 className="text-xs font-semibold text-zinc-400 mb-2 uppercase tracking-wider">Indeks Kepercayaan GIS</h4>
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-blue-500/80 ring-1 ring-blue-500"></div>
