@@ -58,10 +58,27 @@ export default function AnalyticsLiveMap({ selectedZone, onSelectZone, categoryF
     });
 
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
-
     mapRef.current = map;
 
+    map.on('load', () => {
+      map.resize();
+    });
+
+    const timers = [
+      setTimeout(() => map.resize(), 100),
+      setTimeout(() => map.resize(), 400),
+    ];
+
+    const resizeObserver = new ResizeObserver(() => {
+      map.resize();
+    });
+    if (mapContainerRef.current) {
+      resizeObserver.observe(mapContainerRef.current);
+    }
+
     return () => {
+      timers.forEach(clearTimeout);
+      resizeObserver.disconnect();
       map.remove();
     };
   }, []);

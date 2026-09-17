@@ -49,7 +49,25 @@ export default function ClusterMap({ showRaw, showClusters, showPolice, center }
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
     mapRef.current = map;
 
+    map.on('load', () => {
+      map.resize();
+    });
+
+    const timers = [
+      setTimeout(() => map.resize(), 100),
+      setTimeout(() => map.resize(), 400),
+    ];
+
+    const resizeObserver = new ResizeObserver(() => {
+      map.resize();
+    });
+    if (mapContainerRef.current) {
+      resizeObserver.observe(mapContainerRef.current);
+    }
+
     return () => {
+      timers.forEach(clearTimeout);
+      resizeObserver.disconnect();
       map.remove();
     };
   }, []);

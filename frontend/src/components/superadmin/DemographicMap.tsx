@@ -40,10 +40,29 @@ export default function DemographicMap() {
 
     mapRef.current = map;
 
+    // Trigger resize on load and multiple animation frames
+    map.on('load', () => {
+      map.resize();
+    });
+
+    const timers = [
+      setTimeout(() => map.resize(), 50),
+      setTimeout(() => map.resize(), 200),
+      setTimeout(() => map.resize(), 500),
+    ];
+
+    // ResizeObserver ensures map always occupies 100% of flex container
+    const resizeObserver = new ResizeObserver(() => {
+      map.resize();
+    });
+    if (mapContainerRef.current) {
+      resizeObserver.observe(mapContainerRef.current);
+    }
+
     // Add markers
     demographicData.forEach((region) => {
       const color = getColor(region.type);
-      const size = Math.max(region.density / 3, 16);
+      const size = Math.max(region.density / 3.5, 14);
 
       const el = document.createElement('div');
       el.style.cssText = `
@@ -51,7 +70,7 @@ export default function DemographicMap() {
         height: ${size}px;
         border-radius: 9999px;
         background-color: ${color};
-        opacity: 0.85;
+        opacity: 0.9;
         border: 2px solid #ffffff;
         box-shadow: 0 0 10px ${color};
         cursor: pointer;
@@ -74,30 +93,32 @@ export default function DemographicMap() {
     });
 
     return () => {
+      timers.forEach(clearTimeout);
+      resizeObserver.disconnect();
       markersRef.current.forEach((m) => m.remove());
       map.remove();
     };
   }, []);
 
   return (
-    <div className="w-full h-full rounded-lg overflow-hidden bg-zinc-900/50 relative z-0">
-      <div ref={mapContainerRef} className="w-full h-full" style={{ minHeight: '350px' }} />
+    <div className="w-full h-full absolute inset-0 rounded-lg overflow-hidden bg-zinc-900">
+      <div ref={mapContainerRef} className="w-full h-full absolute inset-0" />
       
       {/* Legend */}
-      <div className="absolute bottom-4 left-4 z-[10] bg-[#050505]/90 border border-white/[0.08] p-3 rounded-lg backdrop-blur-sm shadow-xl">
-        <h4 className="text-xs font-semibold text-zinc-400 mb-2 uppercase tracking-wider">Indeks Kepercayaan GIS</h4>
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-blue-500/80 ring-1 ring-blue-500"></div>
-            <span className="text-xs text-zinc-300">Tinggi (Terverifikasi)</span>
+      <div className="absolute bottom-3 left-3 z-[10] bg-[#050505]/90 border border-white/[0.1] px-3 py-2 rounded-lg backdrop-blur-md shadow-xl text-xs">
+        <h4 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">Indeks Kepercayaan</h4>
+        <div className="flex flex-col gap-1 text-[11px]">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+            <span className="text-zinc-300">Tinggi (Terverifikasi)</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-violet-500/80 ring-1 ring-violet-500"></div>
-            <span className="text-xs text-zinc-300">Menengah</span>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-violet-500"></span>
+            <span className="text-zinc-300">Menengah</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-rose-500/80 ring-1 ring-rose-500"></div>
-            <span className="text-xs text-zinc-300">Rendah (Risiko Spam)</span>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+            <span className="text-zinc-300">Rendah (Risiko Spam)</span>
           </div>
         </div>
       </div>
