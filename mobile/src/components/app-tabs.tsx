@@ -1,32 +1,41 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { useColorScheme } from 'react-native';
-
-import { Colors } from '@/constants/theme';
+import React, { useState } from 'react';
+import { Tabs, router } from 'expo-router';
+import { BottomNavigationBar } from './BottomNavigationBar';
 
 export default function AppTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
-
   return (
-    <NativeTabs
-      backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.text } }}>
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Navigasi</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/home.png')}
-          renderingMode="template"
-        />
-      </NativeTabs.Trigger>
+    <Tabs
+      tabBar={(props) => {
+        const currentRouteName = props.state.routes[props.state.index]?.name;
+        let activeTab: 'navigasi' | 'lapor' | 'info' = 'navigasi';
+        if (currentRouteName === 'explore') {
+          activeTab = 'info';
+        } else if (currentRouteName === 'report') {
+          activeTab = 'lapor';
+        }
 
-      <NativeTabs.Trigger name="explore">
-        <NativeTabs.Trigger.Label>Info Aman</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/explore.png')}
-          renderingMode="template"
-        />
-      </NativeTabs.Trigger>
-    </NativeTabs>
+        return (
+          <BottomNavigationBar
+            activeTab={activeTab}
+            onTabPress={(tabId) => {
+              if (tabId === 'lapor') {
+                router.push('/report');
+              } else if (tabId === 'info') {
+                router.push('/explore');
+              } else {
+                router.push('/');
+              }
+            }}
+            onLaporPress={() => router.push('/report')}
+          />
+        );
+      }}
+      screenOptions={{ headerShown: false }}
+    >
+      <Tabs.Screen name="index" options={{ title: 'Navigasi' }} />
+      <Tabs.Screen name="explore" options={{ title: 'Info Aman' }} />
+      <Tabs.Screen name="report" options={{ title: 'Laporkan Insiden', href: null }} />
+      <Tabs.Screen name="sos" options={{ title: 'Protokol Darurat SOS', href: null }} />
+    </Tabs>
   );
 }
