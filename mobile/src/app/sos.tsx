@@ -238,7 +238,7 @@ export function EmergencySOSModal({
     }
   };
 
-  const remainingSeconds = Math.max(0, (3 - holdingProgress * 3).toFixed(1));
+  const remainingSeconds = Math.max(0, 3 - holdingProgress * 3).toFixed(1);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>

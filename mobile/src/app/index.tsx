@@ -75,27 +75,9 @@ export function MainRouteNavigationScreen() {
     router.push('/sos');
   };
 
-  // Toggle Navigation Mode
+  // Toggle Navigation Mode -> Launch Active Safe Navigation Screen (MOD_NAV_04)
   const handleStartNavigation = () => {
-    if (isNavigating) {
-      setIsNavigating(false);
-      Alert.alert('Navigasi Dihentikan', 'Sesi panduan perjalanan telah selesai.');
-    } else {
-      setIsNavigating(true);
-      if (selectedRoute === 'safe') {
-        Alert.alert(
-          '🛡️ Navigasi Aman Aktif',
-          'Rute dipandu melalui Koridor Arteri Utama dengan 92% penerangan jalan aktif dan melewati 3 shelter pengamanan.',
-          [{ text: 'Mulai Meluncur' }]
-        );
-      } else {
-        Alert.alert(
-          '⚠️ Peringatan Risiko Tinggi',
-          'Anda memilih rute tercepat namun melintasi 2 titik rawan begal dan minim penerangan. Radar Geofence tetap aktif mengawal Anda.',
-          [{ text: 'Lanjutkan dengan Waspada' }]
-        );
-      }
-    }
+    router.push('/navigation');
   };
 
   // Dynamic Route Data
