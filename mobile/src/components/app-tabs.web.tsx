@@ -36,6 +36,7 @@ export default function AppTabs() {
       <Tabs.Screen name="explore" options={{ title: 'Info Aman' }} />
       <Tabs.Screen name="report" options={{ title: 'Laporkan Insiden', href: null }} />
       <Tabs.Screen name="sos" options={{ title: 'Protokol Darurat SOS', href: null }} />
+      <Tabs.Screen name="shelters" options={{ title: 'Titik Perlindungan', href: null }} />
     </Tabs>
   );
 }

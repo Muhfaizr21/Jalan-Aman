@@ -438,10 +438,14 @@ export function MainRouteNavigationScreen() {
           </View>
 
           {/* Metric 3: Active Safe Shelters */}
-          <View style={styles.metricCard}>
-            <Text style={styles.metricCardLabel}>Active Safe Shelters</Text>
-            <Text style={styles.metricCardValue}>{sheltersValue}</Text>
-          </View>
+          <TouchableOpacity
+            style={styles.metricCard}
+            onPress={() => router.push('/shelters')}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.metricCardLabel}>Active Safe Shelters ↗</Text>
+            <Text style={[styles.metricCardValue, { color: '#0284C7' }]}>{sheltersValue}</Text>
+          </TouchableOpacity>
         </View>
 
         {/* 3.4 Main Navigation Action Button */}
