@@ -7,6 +7,9 @@ export default function AppTabs() {
     <Tabs
       tabBar={(props) => {
         const currentRouteName = props.state.routes[props.state.index]?.name;
+        if (currentRouteName === 'index') {
+          return null;
+        }
         let activeTab: 'navigasi' | 'lapor' | 'info' = 'navigasi';
         if (currentRouteName === 'explore') {
           activeTab = 'info';

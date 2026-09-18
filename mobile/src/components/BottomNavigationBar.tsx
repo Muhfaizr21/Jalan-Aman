@@ -126,6 +126,9 @@ export function BottomNavigationBar({
         style={styles.actionHighlightContainer}
         onPress={() => handlePress('lapor')}
         activeOpacity={0.85}
+        testID="bottom-nav-lapor"
+        accessibilityLabel="BottomNav 'Lapor' Center Action Button"
+        accessibilityRole="button"
       >
         <View style={styles.actionCircleButton}>
           <AlertCircleOutlineIcon color="#FFFFFF" size={24} />

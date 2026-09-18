@@ -1,1 +1,1 @@
-export { EmergencySOSModal as default, EmergencySOSModal } from '@/app/sos';
+export { EmergencySOSModal as default, EmergencySOSModal, type EmergencySOSModalProps } from '@/app/sos';

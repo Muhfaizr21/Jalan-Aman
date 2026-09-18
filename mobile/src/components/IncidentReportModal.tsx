@@ -262,14 +262,14 @@ export function IncidentReportModal({
           onPress={onClose}
         />
 
-        <View style={styles.sheetContainer}>
+        <View style={styles.sheetContainer} testID="IncidentReportModal">
           {/* ================= 1. HEADER SECTION ================= */}
           <View style={styles.headerSection}>
             <View style={styles.dragHandle} />
 
             <View style={styles.titleRow}>
               <View style={styles.titleTextColumn}>
-                <Text style={styles.sheetTitle}>Laporkan Kondisi Jalan</Text>
+                <Text style={styles.sheetTitle} testID="report-modal-title">Laporkan Kondisi Jalan</Text>
                 <Text style={styles.sheetSubtitle}>
                   Bantu warga lain melintasi rute yang aman
                 </Text>
@@ -291,7 +291,11 @@ export function IncidentReportModal({
             contentContainerStyle={styles.scrollContent}
           >
             {/* ================= 2. LOCATION PICKER PREVIEW ================= */}
-            <View style={styles.locationPickerPreview}>
+            <View
+              style={styles.locationPickerPreview}
+              testID="Auto GPS Tag"
+              accessibilityLabel="Auto GPS Tag"
+            >
               <View style={styles.locationIconWrapper}>
                 <PinDropIcon color="#0284C7" size={22} />
               </View>
@@ -320,7 +324,11 @@ export function IncidentReportModal({
                 Pilih Jenis Insiden / Kerawanan
               </Text>
 
-              <View style={styles.categoryGrid}>
+              <View
+                style={styles.categoryGrid}
+                testID="Category Grid"
+                accessibilityLabel="Category Grid"
+              >
                 {CATEGORY_OPTIONS.map((opt) => {
                   const isSelected = selectedCategory === opt.id;
                   return (
@@ -402,6 +410,8 @@ export function IncidentReportModal({
                   value={chronologyText}
                   onChangeText={setChronologyText}
                   textAlignVertical="top"
+                  testID="Textarea Notes"
+                  accessibilityLabel="Textarea Notes"
                 />
               </View>
 
@@ -418,6 +428,9 @@ export function IncidentReportModal({
                   ]}
                   onPress={handleTogglePhoto}
                   activeOpacity={0.8}
+                  testID="Photo Upload"
+                  accessibilityLabel="Photo Upload"
+                  accessibilityRole="button"
                 >
                   <CameraIcon
                     color={hasPhotoProof ? '#0284C7' : '#64748B'}
@@ -455,6 +468,9 @@ export function IncidentReportModal({
                 onPress={handleSubmitReport}
                 disabled={isSubmitting}
                 activeOpacity={0.88}
+                testID="Submit Button"
+                accessibilityLabel="Submit Button"
+                accessibilityRole="button"
               >
                 <Text style={styles.primaryActionButtonText}>
                   {isSubmitting ? 'Mengirim Laporan...' : 'Kirim Laporan Valid'}

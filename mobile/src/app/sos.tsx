@@ -9,6 +9,7 @@ import {
   Platform,
   Alert,
   StatusBar,
+  Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -127,6 +128,7 @@ function PhoneCallAlertIcon({ color = '#DC2626', size = 18 }: { color?: string; 
 }
 
 export function EmergencySOSModal({
+  visible,
   onDismiss,
   onEvacuationStart,
 }: EmergencySOSModalProps) {
@@ -240,8 +242,8 @@ export function EmergencySOSModal({
 
   const remainingSeconds = Math.max(0, 3 - holdingProgress * 3).toFixed(1);
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+  const content = (
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']} testID="EmergencySOSModal">
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* ================= HEADER: critical_alert_banner ================= */}
@@ -255,7 +257,7 @@ export function EmergencySOSModal({
             </View>
           </View>
 
-          <Text style={styles.headerTitle}>Protokol Darurat Aktif</Text>
+          <Text style={styles.headerTitle} testID="sos-modal-title">Protokol Darurat Aktif</Text>
         </View>
 
         <TouchableOpacity
@@ -325,6 +327,9 @@ export function EmergencySOSModal({
               onPressIn={handlePressIn}
               onPressOut={handlePressOut}
               activeOpacity={0.9}
+              testID="3-Second Hold Circle"
+              accessibilityLabel="3-Second Hold Circle"
+              accessibilityRole="button"
             >
               <AlarmLightOutlineIcon color="#FFFFFF" size={44} />
 
@@ -359,7 +364,11 @@ export function EmergencySOSModal({
             <Text style={styles.etaHighlightBadge}>1 menit berkendara</Text>
           </View>
 
-          <View style={styles.shelterQuickCard}>
+          <View
+            style={styles.shelterQuickCard}
+            testID="Nearest Police Shelter Card"
+            accessibilityLabel="Nearest Police Shelter Card"
+          >
             <View style={styles.shelterTopRow}>
               <View style={styles.shelterIconBox}>
                 <PoliceShieldIcon color="#0284C7" size={22} />
@@ -385,6 +394,7 @@ export function EmergencySOSModal({
               style={styles.evacuationActionButton}
               onPress={handleStartEvacuation}
               activeOpacity={0.88}
+              accessibilityRole="button"
             >
               <NavigationVariantIcon color="#FFFFFF" size={17} />
               <Text style={styles.evacuationActionText}>
@@ -398,7 +408,11 @@ export function EmergencySOSModal({
         <View style={styles.sectionBlock}>
           <Text style={styles.sectionHeading}>Penerima Siaran Koordinat</Text>
 
-          <View style={styles.contactsListContainer}>
+          <View
+            style={styles.contactsListContainer}
+            testID="Family Emergency Contact Broadcast"
+            accessibilityLabel="Family Emergency Contact Broadcast"
+          >
             {/* Contact 1: Ibu */}
             <View style={styles.contactItemRow}>
               <View style={styles.contactIconCircle}>
@@ -461,12 +475,30 @@ export function EmergencySOSModal({
           style={styles.cancelButton}
           onPress={handleDismiss}
           activeOpacity={0.8}
+          testID="Cancel Button"
+          accessibilityLabel="Cancel Button"
+          accessibilityRole="button"
         >
           <Text style={styles.cancelButtonText}>Batal / Salah Tekan</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
+
+  if (visible !== undefined) {
+    return (
+      <Modal
+        visible={visible}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={handleDismiss}
+      >
+        {content}
+      </Modal>
+    );
+  }
+
+  return content;
 }
 
 export default EmergencySOSModal;
