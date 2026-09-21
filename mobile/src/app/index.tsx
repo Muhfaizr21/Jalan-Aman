@@ -1,96 +1,55 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  Animated,
   StatusBar,
   Alert,
-  Dimensions,
+  Share,
   Platform,
+  TouchableOpacity,
+  ScrollView,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import Svg, {
-  Defs,
-  LinearGradient,
-  Stop,
-  Path,
-  Circle,
-  Rect,
-  Text as SvgText,
-  G,
-} from 'react-native-svg';
-import { IncidentReportModal } from '@/components/IncidentReportModal';
+import Svg, { Path, Circle } from 'react-native-svg';
+import { DashboardTheme } from '@/constants/dashboardTheme';
+import {
+  NavigationHeaderOverlay,
+  TurnByTurnCard,
+  SpatialHazardBanner,
+  NavigationMapCanvas,
+  RouteSelectionSheet,
+  SearchSuggestionModal,
+  MapLayersModal,
+  MapLayerConfig,
+} from '@/components/navigation';
+import { QuickCommuteSearch } from '@/components/dashboard/QuickCommuteSearch';
+import { DashboardBottomNav, NotificationCenterModal } from '@/components/dashboard';
 import { EmergencySOSModal } from '@/components/EmergencySOSModal';
-import { SafeHavenDirectoryModal } from '@/components/SafeHavenDirectoryModal';
-import { ActiveSafeNavigationHUD } from '@/components/ActiveSafeNavigationHUD';
-import { BottomNavigationBar } from '@/components/BottomNavigationBar';
+import { ArrivalSuccessModal } from '@/components/protection';
+import { RouteFeedbackSheet } from '@/components/community-report';
+import { useNotifications } from '@/hooks/useNotifications';
+import { useAuth } from '@/hooks/useAuth';
+import { DashboardTabId, QuickDestinationChip } from '@/types/dashboard';
+import { RouteOptionType } from '@/types/navigation';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+/**
+ * Google Maps-Style Navigation Flow States:
+ * 1. 'idle_explore': Standby full-screen map with search bar & category chips.
+ * 2. 'route_preview': Route selection sheet with safe vs fast routes.
+ * 3. 'active_navigation': Cockpit mode with 3D tilted map, turn-by-turn HUD, and exit controls.
+ */
+export type MapFlowState = 'idle_explore' | 'route_preview' | 'active_navigation';
 
-export type RouteType = 'safe' | 'fast';
-export type AppState = 'idle_explore' | 'route_preview_active' | 'turn_by_turn_nav';
-export type MapStyle = 'clean_editorial' | 'satellite' | 'night_contrast';
-
-const MAP_THEMES = {
-  clean_editorial: {
-    name: 'Standar Peta Aman',
-    background: '#F8FAFC',
-    blockFill: '#EEF2F6',
-    blockBorder: '#E2E8F0',
-    parkFill: '#F0FDF4',
-    parkBorder: '#DCFCE7',
-    parkText: '#16A34A',
-    river: '#E0F2FE',
-    roadGrid: '#F1F5F9',
-    roadSecondary: '#E2E8F0',
-    labelFill: '#0F172A',
-    sublabelFill: '#64748B',
-    userPillBg: '#0F172A',
-  },
-  satellite: {
-    name: 'Satelit Bumi',
-    background: '#0F172A',
-    blockFill: '#1E293B',
-    blockBorder: '#334155',
-    parkFill: '#14532D',
-    parkBorder: '#166534',
-    parkText: '#86EFAC',
-    river: '#0369A1',
-    roadGrid: '#334155',
-    roadSecondary: '#475569',
-    labelFill: '#F8FAFC',
-    sublabelFill: '#94A3B8',
-    userPillBg: '#0284C7',
-  },
-  night_contrast: {
-    name: 'Mode Malam Kontras',
-    background: '#050811',
-    blockFill: '#0D1527',
-    blockBorder: '#1E293B',
-    parkFill: '#064E3B',
-    parkBorder: '#047857',
-    parkText: '#34D399',
-    river: '#0C4A6E',
-    roadGrid: '#1E293B',
-    roadSecondary: '#0284C7',
-    labelFill: '#E2E8F0',
-    sublabelFill: '#64748B',
-    userPillBg: '#0F172A',
-  },
-};
-
-/* ================= VECTOR ICONS ================= */
-function LayersOutlineIcon({ color = '#0284C7', size = 20 }: { color?: string; size?: number }) {
+/* Vector Icons for State Transitions */
+function ArrowBackIcon({ size = 20, color = DashboardTheme.colors.textPrimary }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
-        d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+        d="M19 12H5M12 19l-7-7 7-7"
         stroke={color}
-        strokeWidth="2"
+        strokeWidth={2.4}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -98,32 +57,13 @@ function LayersOutlineIcon({ color = '#0284C7', size = 20 }: { color?: string; s
   );
 }
 
-function CrosshairsGpsIcon({ color = '#0284C7', size = 20 }: { color?: string; size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Circle cx="12" cy="12" r="7" stroke={color} strokeWidth="2" />
-      <Path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke={color} strokeWidth="2" strokeLinecap="round" />
-      <Circle cx="12" cy="12" r="2.5" fill={color} />
-    </Svg>
-  );
-}
-
-function SearchIcon({ color = '#64748B', size = 18 }: { color?: string; size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Circle cx="11" cy="11" r="7" stroke={color} strokeWidth="2" />
-      <Path d="M21 21l-4.35-4.35" stroke={color} strokeWidth="2.2" strokeLinecap="round" />
-    </Svg>
-  );
-}
-
-function HomeOutlineIcon({ color = '#0284C7', size = 16 }: { color?: string; size?: number }) {
+function CloseIcon({ size = 18, color = '#FFFFFF' }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
-        d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-6h-6v6H4a1 1 0 01-1-1V9.5z"
+        d="M18 6L6 18M6 6l12 12"
         stroke={color}
-        strokeWidth="2"
+        strokeWidth={2.4}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -131,13 +71,14 @@ function HomeOutlineIcon({ color = '#0284C7', size = 16 }: { color?: string; siz
   );
 }
 
-function SchoolOutlineIcon({ color = '#0284C7', size = 16 }: { color?: string; size?: number }) {
+function WalkingIcon({ size = 16, color = DashboardTheme.colors.primary }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx="12" cy="4" r="2" fill={color} />
       <Path
-        d="M22 10L12 5 2 10l10 5 10-5zM6 12v5c0 2 3 3 6 3s6-1 6-3v-5"
+        d="M10 22l2-7 3 3v4M8 12l3-3 2 1 2 4M14 9l2-3"
         stroke={color}
-        strokeWidth="2"
+        strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -145,1267 +86,743 @@ function SchoolOutlineIcon({ color = '#0284C7', size = 16 }: { color?: string; s
   );
 }
 
-function BriefcaseOutlineIcon({ color = '#0284C7', size = 16 }: { color?: string; size?: number }) {
+function MotorcycleIcon({ size = 16, color = DashboardTheme.colors.textSecondary }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Rect x="3" y="7" width="18" height="14" rx="2" stroke={color} strokeWidth="2" />
-      <Path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" stroke={color} strokeWidth="2" />
-      <Path d="M12 12v2" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      <Circle cx="5" cy="17" r="3" stroke={color} strokeWidth={2} />
+      <Circle cx="19" cy="17" r="3" stroke={color} strokeWidth={2} />
+      <Path
+        d="M5 17l4-7h5l3 7M9 10l2-4h3"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </Svg>
   );
 }
 
-export function MainRouteNavigationScreen() {
+export function NavigationHomeScreen() {
   const insets = useSafeAreaInsets();
+  const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0;
+  const safeTop = Math.max(insets.top, statusBarHeight);
+  const safeBottom = Math.max(insets.bottom, 12);
 
-  // State Management
-  const [appState, setAppState] = useState<AppState>('idle_explore');
-  const [activeMapStyle, setActiveMapStyle] = useState<MapStyle>('clean_editorial');
-  const [isStyleMenuOpen, setIsStyleMenuOpen] = useState(false);
-  const [selectedDestination, setSelectedDestination] = useState<string>('Rumah');
-  const [searchInputValue, setSearchInputValue] = useState<string>('');
-  const [selectedRoute, setSelectedRoute] = useState<RouteType>('safe');
+  // Google Maps Flow State Machine
+  const [mapFlowState, setMapFlowState] = useState<MapFlowState>('idle_explore');
+  const [destinationName, setDestinationName] = useState('Stasiun Jatibarang');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [travelMode, setTravelMode] = useState<'walk' | 'motor'>('walk');
 
-  // Modal States
-  const [isSOSModalVisible, setIsSOSModalVisible] = useState(false);
-  const [isReportModalVisible, setIsReportModalVisible] = useState(false);
-  const [isShelterModalVisible, setIsShelterModalVisible] = useState(false);
+  // Route & Telemetry Options
+  const [selectedRoute, setSelectedRoute] = useState<RouteOptionType>('safe');
+  const [isVoiceActive, setIsVoiceActive] = useState(true);
+  const [isHazardVisible, setIsHazardVisible] = useState(true);
+  const [isTilt3D, setIsTilt3D] = useState(false);
+  const [isCctvLayerActive, setIsCctvLayerActive] = useState(true);
+  const [isSosModalVisible, setIsSosModalVisible] = useState(false);
 
-  // Pulse animation for TopRadarBanner and GPS Puck
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const radarRingAnim = useRef(new Animated.Value(1)).current;
+  // New Senior UI/UX Modals (Item 1 & Item 2)
+  const [isSearchModalVisible, setIsSearchModalVisible] = useState(false);
+  const [isLayersModalVisible, setIsLayersModalVisible] = useState(false);
+  const [isArrivalModalVisible, setIsArrivalModalVisible] = useState(false);
+  const [isFeedbackSheetVisible, setIsFeedbackSheetVisible] = useState(false);
+  const [isNotifModalVisible, setIsNotifModalVisible] = useState(false);
+  const { hasUnread } = useNotifications();
+  const { user } = useAuth();
+  const [layerConfig, setLayerConfig] = useState<MapLayerConfig>({
+    mapType: 'satellite',
+    showCrimeHeatmap: false,
+    showPjuLighting: true,
+    showCctvCameras: true,
+    showSafeHavens: true,
+  });
 
-  useEffect(() => {
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(pulseAnim, {
-            toValue: 1.3,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(radarRingAnim, {
-            toValue: 2.2,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.parallel([
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(radarRingAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-        ]),
-      ])
-    );
-    pulse.start();
+  // Handlers for State 1: Idle Explore (Search & Chips)
+  const handleSearchSubmit = useCallback(() => {
+    const target = searchQuery.trim() || 'Stasiun Jatibarang';
+    setDestinationName(target);
+    setMapFlowState('route_preview');
+  }, [searchQuery]);
 
-    return () => pulse.stop();
-  }, [pulseAnim, radarRingAnim]);
+  const handleChipPress = useCallback((chip: QuickDestinationChip) => {
+    setDestinationName(chip.label);
+    setSearchQuery(chip.label);
+    setMapFlowState('route_preview');
+  }, []);
 
-  // Handlers
-  const handleSOSPress = () => {
-    setIsSOSModalVisible(true);
-  };
+  const handleOpenSearchModal = useCallback(() => {
+    setIsSearchModalVisible(true);
+  }, []);
 
-  const handleSheltersPress = () => {
-    setIsShelterModalVisible(true);
-  };
+  const handleSelectPlace = useCallback((placeName: string) => {
+    setDestinationName(placeName);
+    setSearchQuery(placeName);
+    setMapFlowState('route_preview');
+  }, []);
 
-  const handleReportPress = () => {
-    setIsReportModalVisible(true);
-  };
+  const handleOpenLayersModal = useCallback(() => {
+    setIsLayersModalVisible(true);
+  }, []);
 
-  const handleSelectDestination = (destName: string) => {
-    setSelectedDestination(destName);
-    setAppState('route_preview_active');
-  };
+  const handleChangeLayerConfig = useCallback((newConfig: MapLayerConfig) => {
+    setLayerConfig(newConfig);
+    setIsCctvLayerActive(newConfig.showCctvCameras);
+  }, []);
 
-  const handleSearchSubmit = () => {
-    const dest = searchInputValue.trim() || 'Pusat Kota / Sleman';
-    setSelectedDestination(dest);
-    setAppState('route_preview_active');
-  };
+  // Handlers for State 2: Route Preview
+  const handleCancelPreview = useCallback(() => {
+    setMapFlowState('idle_explore');
+  }, []);
 
-  const handleCancelRoutePreview = () => {
-    setAppState('idle_explore');
-  };
+  const handleStartNavigation = useCallback(() => {
+    setMapFlowState('active_navigation');
+    setIsTilt3D(true); // Automatically switch to 3D perspective during navigation
+  }, []);
 
-  const handleStartNavigation = () => {
-    setAppState('turn_by_turn_nav');
-  };
-
-  const handleRecenterGPS = () => {
+  // Handlers for State 3: Active Turn-by-Turn Navigation
+  const handleExitNavigation = useCallback(() => {
     Alert.alert(
-      '📍 Posisi GPS Dipusatkan',
-      'Kamera peta berpusat ke koordinat Anda (-6.3264, 108.3242) dengan radius geofence aman 500 meter.'
+      'Selesaikan Perjalanan?',
+      'Apakah Anda telah tiba di tujuan dengan selamat?',
+      [
+        {
+          text: '✅ Ya, Saya Sudah Tiba',
+          onPress: () => {
+            setIsArrivalModalVisible(true);
+          },
+        },
+        {
+          text: 'Keluar Tanpa Selesai',
+          style: 'destructive',
+          onPress: () => {
+            setMapFlowState('idle_explore');
+            setIsTilt3D(false);
+          },
+        },
+        { text: 'Lanjutkan Navigasi', style: 'cancel' },
+      ]
     );
-  };
+  }, []);
 
-  // Dynamic Route Metrics
-  const isSafe = selectedRoute === 'safe';
-  const durationText = isSafe ? '18 mins' : '15 mins';
-  const distanceText = isSafe
-    ? '6.2 km via Main Arterial Corridor'
-    : '5.1 km via Dark Shortcut Gang';
-  const safetyScoreText = isSafe ? 'Safety Score: 96/100' : 'Safety Score: 38/100';
-  const streetlightValue = isSafe ? '92% Illuminated' : '38% Illuminated';
-  const riskClustersValue = isSafe ? '2 Hotspots Avoided' : '2 Hotspots Crossed';
-  const sheltersValue = isSafe ? '3 Locations' : '0 Shelters';
-  const actionButtonText = isSafe
-    ? 'Start Safe Navigation'
-    : 'Start Navigation (High Risk)';
+  const handleReturnFromArrival = useCallback(() => {
+    setIsArrivalModalVisible(false);
+    setMapFlowState('idle_explore');
+    setIsTilt3D(false);
+    setIsFeedbackSheetVisible(true);
+  }, []);
 
-  const mapTheme = MAP_THEMES[activeMapStyle];
-  const showRoutePolylines = appState === 'route_preview_active';
+  const handleCloseFeedback = useCallback(() => {
+    setIsFeedbackSheetVisible(false);
+  }, []);
 
-  // State 3: Turn-by-turn Navigation HUD
-  if (appState === 'turn_by_turn_nav') {
-    return (
-      <View style={styles.screenContainer}>
-        <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
-        <ActiveSafeNavigationHUD
-          onStopNavigation={() => setAppState('route_preview_active')}
-          onOpenShelters={handleSheltersPress}
-          onOpenSOS={handleSOSPress}
-        />
+  const handleToggleVoice = useCallback(() => {
+    setIsVoiceActive((prev) => {
+      const next = !prev;
+      Alert.alert(
+        next ? 'Panduan Suara Aktif' : 'Panduan Suara Senyap',
+        next
+          ? 'Instruksi suara navigasi bahasa Indonesia aktif.'
+          : 'Instruksi suara dimatikan.'
+      );
+      return next;
+    });
+  }, []);
 
-        {/* Modals during active navigation */}
-        <IncidentReportModal
-          visible={isReportModalVisible}
-          onClose={() => setIsReportModalVisible(false)}
-        />
-        <EmergencySOSModal
-          visible={isSOSModalVisible}
-          onDismiss={() => setIsSOSModalVisible(false)}
-          onEvacuationStart={() => setIsSOSModalVisible(false)}
-        />
-        <SafeHavenDirectoryModal
-          visible={isShelterModalVisible}
-          onClose={() => setIsShelterModalVisible(false)}
-          onReroute={() => setIsShelterModalVisible(false)}
-        />
-      </View>
+  const handleSosPress = useCallback(() => {
+    setIsSosModalVisible(true);
+  }, []);
+
+  // Spatial Hazard Banner Actions
+  const handleDismissHazard = useCallback(() => {
+    setIsHazardVisible(false);
+  }, []);
+
+  const handleApplyDeviation = useCallback(() => {
+    setSelectedRoute('safe');
+    setIsHazardVisible(false);
+    Alert.alert(
+      'Deviasi Diterapkan',
+      'Rute dialihkan via Jl. Sabang (+2 mnt). Melewati 100% jalan dengan penerangan PJU penuh & 2 Pos Pantau aktif.'
     );
-  }
+  }, []);
+
+  const handleIgnoreHazard = useCallback(() => {
+    setIsHazardVisible(false);
+  }, []);
+
+  // Companion Live Trip Share
+  const handleShareTrip = useCallback(async () => {
+    try {
+      const routeDesc =
+        selectedRoute === 'safe'
+          ? 'Rute Rekomendasi Aman (Skor 96/100)'
+          : 'Rute Tercepat (Skor 72/100)';
+      const travelerName = user?.name || 'Warga';
+      const userSlug = user?.name
+        ? encodeURIComponent(user.name.trim().toLowerCase().replace(/\s+/g, '-'))
+        : 'warga';
+      await Share.share({
+        title: `Pantau Perjalanan Aman ${travelerName} - JalanAman`,
+        message: `Hai, saya sedang dalam perjalanan menuju ${destinationName} menggunakan JalanAman AI (${routeDesc}). Pantau lokasi langsung saya secara terenkripsi: https://jalanaman.id/track/live-${userSlug}-indramayu`,
+      });
+    } catch {
+      Alert.alert('Tautan Tersedia', 'Tautan pelacakan aman disalin ke clipboard.');
+    }
+  }, [selectedRoute, destinationName, user]);
+
+  // Map Controls
+  const handleRecenter = useCallback(() => {
+    Alert.alert('Lokasi Terpusat', 'Posisi GPS Anda dikalibrasi ke pusat peta (akurasi ±3 meter).');
+  }, []);
+
+  const handleToggleTilt = useCallback(() => {
+    setIsTilt3D((prev) => !prev);
+  }, []);
+
+  const handleToggleCctvLayer = useCallback(() => {
+    setIsCctvLayerActive((prev) => !prev);
+  }, []);
+
+  const handlePinPress = useCallback((pinTitle: string, pinDetail: string) => {
+    Alert.alert(pinTitle, pinDetail);
+  }, []);
+
+  // Bottom Navigation Bar Handler
+  const handleTabPress = useCallback((tabId: DashboardTabId) => {
+    if (tabId === 'routes') {
+      setMapFlowState('idle_explore');
+    } else if (tabId === 'radar') {
+      router.push('/radar');
+    } else if (tabId === 'feed') {
+      router.push('/explore');
+    } else if (tabId === 'profile') {
+      router.push('/profile');
+    }
+  }, []);
 
   return (
-    <SafeAreaView style={styles.screenContainer} edges={['top', 'left', 'right']}>
+    <View style={styles.screenContainer}>
       <StatusBar
-        barStyle={activeMapStyle === 'clean_editorial' ? 'dark-content' : 'light-content'}
-        backgroundColor={activeMapStyle === 'clean_editorial' ? '#FFFFFF' : '#0F172A'}
+        barStyle={mapFlowState === 'active_navigation' ? 'light-content' : 'dark-content'}
+        backgroundColor="#0B0F19"
       />
 
-      {/* ================= 1. TOP RADAR BANNER ================= */}
-      <View style={styles.topRadarBanner}>
-        <View style={styles.pulseDotContainer}>
-          <Animated.View
-            style={[
-              styles.radarPulseRing,
-              {
-                transform: [{ scale: radarRingAnim }],
-                opacity: radarRingAnim.interpolate({
-                  inputRange: [1, 2.2],
-                  outputRange: [0.6, 0],
-                }),
-              },
-            ]}
-          />
-          <Animated.View
-            style={[
-              styles.pulseDot,
-              {
-                transform: [{ scale: pulseAnim }],
-              },
-            ]}
-          />
-        </View>
-
-        <Text style={styles.radarLabel}>Live Geofence Radar: 500m Radius Clear</Text>
-
-        <View style={styles.radarStatusPill}>
-          <Text style={styles.radarStatusText}>ONLINE</Text>
-        </View>
+      {/* ================= 1. FULL BACKGROUND GIS SATELLITE MAP ================= */}
+      <View style={styles.mapCanvasWrapper}>
+        <NavigationMapCanvas
+          selectedRoute={selectedRoute}
+          isTilt3D={isTilt3D}
+          isCctvLayerActive={isCctvLayerActive}
+          onRecenter={handleRecenter}
+          onToggleTilt={handleToggleTilt}
+          onToggleCctvLayer={handleToggleCctvLayer}
+          onOpenLayersModal={handleOpenLayersModal}
+          onPinPress={handlePinPress}
+          showSafeRoute={mapFlowState !== 'idle_explore'}
+          pitch={mapFlowState === 'active_navigation' ? 58 : isTilt3D ? 52 : 0}
+          bearing={mapFlowState === 'active_navigation' ? -20 : isTilt3D ? -20 : 0}
+          zoom={mapFlowState === 'active_navigation' ? 16.2 : mapFlowState === 'route_preview' ? 15.2 : 14.8}
+          dockTop={
+            mapFlowState === 'active_navigation'
+              ? safeTop + 175
+              : mapFlowState === 'route_preview'
+              ? safeTop + 95
+              : safeTop + 140
+          }
+          style={StyleSheet.absoluteFill}
+        />
       </View>
 
-      {/* ================= 2. INTERACTIVE VECTOR MAP VIEWPORT ================= */}
-      <View style={styles.mapCanvasContainer}>
-        <Svg width="100%" height="100%" viewBox="0 0 390 420" preserveAspectRatio="xMidYMid slice">
-          <Defs>
-            {/* Cyan-to-Blue Linear Gradient for Safe Route */}
-            <LinearGradient id="safeRouteGradient" x1="0%" y1="100%" x2="100%" y2="0%">
-              <Stop offset="0%" stopColor="#0284C7" stopOpacity="1" />
-              <Stop offset="100%" stopColor="#06B6D4" stopOpacity="1" />
-            </LinearGradient>
-
-            {/* Glowing filter for active safe path */}
-            <LinearGradient id="safeRouteGlow" x1="0%" y1="100%" x2="100%" y2="0%">
-              <Stop offset="0%" stopColor="#0284C7" stopOpacity="0.3" />
-              <Stop offset="100%" stopColor="#06B6D4" stopOpacity="0.3" />
-            </LinearGradient>
-          </Defs>
-
-          {/* Cartography Background based on activeMapStyle */}
-          <Rect x="0" y="0" width="390" height="420" fill={mapTheme.background} />
-
-          {/* Urban Map City Blocks */}
-          <Rect x="20" y="30" width="70" height="60" rx="6" fill={mapTheme.blockFill} stroke={mapTheme.blockBorder} strokeWidth="1" />
-          <Rect x="105" y="25" width="85" height="50" rx="6" fill={mapTheme.blockFill} stroke={mapTheme.blockBorder} strokeWidth="1" />
-          <Rect x="285" y="35" width="80" height="55" rx="6" fill={mapTheme.blockFill} stroke={mapTheme.blockBorder} strokeWidth="1" />
-
-          <Rect x="15" y="115" width="65" height="70" rx="6" fill={mapTheme.blockFill} stroke={mapTheme.blockBorder} strokeWidth="1" />
-          <Rect x="300" y="110" width="75" height="75" rx="6" fill={mapTheme.blockFill} stroke={mapTheme.blockBorder} strokeWidth="1" />
-
-          <Rect x="25" y="235" width="75" height="60" rx="6" fill={mapTheme.blockFill} stroke={mapTheme.blockBorder} strokeWidth="1" />
-          <Rect x="290" y="225" width="80" height="70" rx="6" fill={mapTheme.blockFill} stroke={mapTheme.blockBorder} strokeWidth="1" />
-
-          {/* Green Community Park Zone */}
-          <Rect x="110" y="240" width="60" height="50" rx="8" fill={mapTheme.parkFill} stroke={mapTheme.parkBorder} strokeWidth="1" />
-          <SvgText x="140" y="268" fill={mapTheme.parkText} fontSize="9" fontWeight="600" textAnchor="middle">
-            TAMAN KOTA
-          </SvgText>
-
-          {/* River / Water Canal */}
-          <Path
-            d="M -10 330 C 90 310, 180 340, 270 315 C 330 300, 370 320, 410 310"
-            stroke={mapTheme.river}
-            strokeWidth="18"
-            fill="none"
-            strokeLinecap="round"
+      {/* ================= 2. KONDISI 1: IDLE / EXPLORE (STANDBY PETA) ================= */}
+      {mapFlowState === 'idle_explore' && (
+        <View style={[styles.idleTopOverlay, { paddingTop: safeTop + 8 }]} pointerEvents="box-none">
+          <QuickCommuteSearch
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onSubmitSearch={handleSearchSubmit}
+            onPressSearchInput={handleOpenSearchModal}
+            onChipPress={handleChipPress}
+            onFilterPress={handleOpenLayersModal}
+            onNotificationPress={() => setIsNotifModalVisible(true)}
+            hasUnreadNotifications={hasUnread}
           />
+        </View>
+      )}
 
-          {/* Minor Road Grid Lines */}
-          <Path d="M 0 100 L 390 100" stroke={mapTheme.roadGrid} strokeWidth="10" />
-          <Path d="M 0 205 L 390 205" stroke={mapTheme.roadGrid} strokeWidth="12" />
-          <Path d="M 95 0 L 95 420" stroke={mapTheme.roadGrid} strokeWidth="10" />
-          <Path d="M 285 0 L 285 420" stroke={mapTheme.roadGrid} strokeWidth="10" />
+      {/* ================= 3. KONDISI 2: ROUTE PREVIEW (PILIH RUTE) ================= */}
+      {mapFlowState === 'route_preview' && (
+        <View style={styles.previewContainer} pointerEvents="box-none">
+          {/* Top Route Planning Header (Google Maps Style) */}
+          <View style={[styles.routeHeaderCard, { marginTop: safeTop + 8 }]}>
+            <View style={styles.routeHeaderTopRow}>
+              <TouchableOpacity
+                style={styles.backCircleBtn}
+                onPress={handleCancelPreview}
+                activeOpacity={0.8}
+                accessibilityLabel="Kembali ke peta jelajah"
+              >
+                <ArrowBackIcon size={20} />
+              </TouchableOpacity>
 
-          {/* Secondary Street Arteries */}
-          <Path d="M 195 20 L 195 400" stroke={mapTheme.roadSecondary} strokeWidth="6" strokeLinecap="round" />
-          <Path d="M 20 150 Q 200 130 370 150" stroke={mapTheme.roadSecondary} strokeWidth="8" strokeLinecap="round" />
+              <View style={styles.pointsColumn}>
+                <View style={styles.pointRow}>
+                  <View style={styles.originDot} />
+                  <Text style={styles.pointText} numberOfLines={1}>
+                    Lokasi Saya (Jatibarang, Indramayu)
+                  </Text>
+                </View>
+                <View style={styles.pointsDivider} />
+                <View style={styles.pointRow}>
+                  <View style={styles.destDot} />
+                  <Text style={[styles.pointText, styles.destText]} numberOfLines={1}>
+                    {destinationName}
+                  </Text>
+                </View>
+              </View>
 
-          {/* Crime Cluster Overlay (Red Warning Perimeter) */}
-          <G>
-            <Circle
-              cx="195"
-              cy="148"
-              r="46"
-              fill="#FEE2E2"
-              fillOpacity="0.45"
-              stroke="#DC2626"
-              strokeWidth="1.5"
-              strokeDasharray="4,4"
-            />
-            <Circle cx="195" cy="148" r="7" fill="#DC2626" fillOpacity="0.8" />
-            <Rect x="140" y="112" width="110" height="18" rx="4" fill="#DC2626" />
-            <SvgText x="195" y="124" fill="#FFFFFF" fontSize="8" fontWeight="800" textAnchor="middle">
-              ⚠️ KLASTER BEGAL AKTIF
-            </SvgText>
-          </G>
-
-          {/* Shelters (Always rendered on map) */}
-          {/* Shelter 1: Pos Polisi */}
-          <G transform="translate(160, 205)">
-            <Circle cx="0" cy="0" r="13" fill="#FFFFFF" stroke="#0284C7" strokeWidth="2" />
-            <SvgText x="0" y="4" fill="#0284C7" fontSize="8" fontWeight="800" textAnchor="middle">
-              POL
-            </SvgText>
-            <Rect x="-28" y="-22" width="56" height="13" rx="3" fill="#0284C7" />
-            <SvgText x="0" y="-13" fill="#FFFFFF" fontSize="7" fontWeight="700" textAnchor="middle">
-              POS POLISI
-            </SvgText>
-          </G>
-
-          {/* Shelter 2: Minimarket 24 Jam */}
-          <G transform="translate(290, 175)">
-            <Circle cx="0" cy="0" r="11" fill="#FFFFFF" stroke="#059669" strokeWidth="2" />
-            <SvgText x="0" y="4" fill="#059669" fontSize="8" fontWeight="800" textAnchor="middle">
-              24H
-            </SvgText>
-            <Rect x="-25" y="-20" width="50" height="13" rx="3" fill="#059669" />
-            <SvgText x="0" y="-11" fill="#FFFFFF" fontSize="7" fontWeight="700" textAnchor="middle">
-              SHELTER
-            </SvgText>
-          </G>
-
-          {/* User Current Location Marker (Minimal Blue Pulse Puck) */}
-          <G transform="translate(50, 310)">
-            <Circle cx="0" cy="0" r="26" fill="#0284C7" fillOpacity="0.12" stroke="#0284C7" strokeWidth="1" strokeDasharray="3,3" />
-            <Circle cx="0" cy="0" r="14" fill="#0284C7" fillOpacity="0.25" />
-            <Circle cx="0" cy="0" r="7" fill="#0284C7" stroke="#FFFFFF" strokeWidth="2.5" />
-            <Rect x="-36" y="14" width="72" height="18" rx="4" fill={mapTheme.userPillBg} />
-            <SvgText x="0" y="26" fill="#FFFFFF" fontSize="8" fontWeight="700" textAnchor="middle">
-              LOKASI SAYA
-            </SvgText>
-          </G>
-
-          {/* CONDITIONAL: Navigation Polylines & Destination Pin ONLY in route_preview_active */}
-          {showRoutePolylines && (
-            <>
-              {/* Shortest Route (Dashed Line) */}
-              <Path
-                d="M 50 310 L 110 205 L 195 148 L 285 100 L 340 70"
-                stroke={!isSafe ? '#DC2626' : '#94A3B8'}
-                strokeWidth={!isSafe ? 4.5 : 3}
-                strokeDasharray="7,5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-                opacity={!isSafe ? 1 : 0.65}
-              />
-
-              {/* Safe Route (Glow Layer) */}
-              {isSafe && (
-                <Path
-                  d="M 50 310 C 90 310, 100 240, 160 220 C 230 200, 270 205, 300 160 C 320 130, 310 90, 340 70"
-                  stroke="url(#safeRouteGlow)"
-                  strokeWidth="14"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  fill="none"
-                />
-              )}
-
-              {/* Safe Route Ribbon */}
-              <Path
-                d="M 50 310 C 90 310, 100 240, 160 220 C 230 200, 270 205, 300 160 C 320 130, 310 90, 340 70"
-                stroke="url(#safeRouteGradient)"
-                strokeWidth={isSafe ? 5 : 3.5}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-                opacity={isSafe ? 1 : 0.45}
-              />
-
-              {/* Destination Pin */}
-              <G transform="translate(340, 70)">
-                <Circle cx="0" cy="0" r="15" fill="#059669" fillOpacity="0.2" />
-                <Circle cx="0" cy="0" r="8" fill="#059669" stroke="#FFFFFF" strokeWidth="2.5" />
-                <Rect x="-42" y="-26" width="84" height="18" rx="4" fill="#059669" />
-                <SvgText x="0" y="-14" fill="#FFFFFF" fontSize="8" fontWeight="700" textAnchor="middle">
-                  {selectedDestination.toUpperCase()} 🏠
-                </SvgText>
-              </G>
-            </>
-          )}
-        </Svg>
-
-        {/* Floating Control 1: Map Layer Switcher (Top Left) */}
-        <View style={styles.layerSwitcherContainer}>
-          <TouchableOpacity
-            style={styles.floatingLayerButton}
-            onPress={() => setIsStyleMenuOpen(!isStyleMenuOpen)}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel="Ganti Gaya Peta"
-          >
-            <LayersOutlineIcon color="#0284C7" size={20} />
-          </TouchableOpacity>
-
-          {/* Layer Options Popup Menu */}
-          {isStyleMenuOpen && (
-            <View style={styles.layerOptionsDropdown}>
-              {(['clean_editorial', 'satellite', 'night_contrast'] as MapStyle[]).map((styleKey) => {
-                const isSelected = activeMapStyle === styleKey;
-                const themeOpt = MAP_THEMES[styleKey];
-                return (
-                  <TouchableOpacity
-                    key={styleKey}
-                    style={[
-                      styles.layerOptionItem,
-                      isSelected && styles.layerOptionItemActive,
-                    ]}
-                    onPress={() => {
-                      setActiveMapStyle(styleKey);
-                      setIsStyleMenuOpen(false);
-                    }}
-                    activeOpacity={0.75}
-                  >
-                    <View
-                      style={[
-                        styles.styleColorDot,
-                        { backgroundColor: themeOpt.background === '#F8FAFC' ? '#0284C7' : themeOpt.background },
-                      ]}
-                    />
-                    <Text
-                      style={[
-                        styles.layerOptionText,
-                        isSelected && styles.layerOptionTextActive,
-                      ]}
-                    >
-                      {themeOpt.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+              <TouchableOpacity
+                style={styles.cancelTextBtn}
+                onPress={handleCancelPreview}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.cancelTextBtnLabel}>Batal</Text>
+              </TouchableOpacity>
             </View>
-          )}
-        </View>
 
-        {/* Floating Control 2: Emergency SOS Button (Top Right) */}
-        <TouchableOpacity
-          style={styles.sosFloatingButton}
-          onPress={handleSOSPress}
-          activeOpacity={0.85}
-          testID="floating-sos-button"
-          accessibilityLabel="Floating SOS Button"
-          accessibilityRole="button"
-        >
-          <Text style={styles.sosButtonText}>SOS</Text>
-        </TouchableOpacity>
-
-        {/* Floating Control 3: Recenter GPS Button (Bottom Right above sheet) */}
-        <TouchableOpacity
-          style={styles.recenterGpsButton}
-          onPress={handleRecenterGPS}
-          activeOpacity={0.85}
-          testID="recenter-gps-button"
-          accessibilityLabel="Recenter GPS Button"
-          accessibilityRole="button"
-        >
-          <CrosshairsGpsIcon color="#0284C7" size={22} />
-        </TouchableOpacity>
-
-        {/* Route Preview Legend Overlay */}
-        {showRoutePolylines && (
-          <View style={styles.mapLegendOverlay}>
-            <TouchableOpacity
-              style={[styles.legendChip, isSafe && styles.legendChipActiveSafe]}
-              onPress={() => setSelectedRoute('safe')}
-            >
-              <View style={[styles.legendColorDot, { backgroundColor: '#0284C7' }]} />
-              <Text style={[styles.legendText, isSafe && styles.legendTextActive]}>Rute Aman</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.legendChip, !isSafe && styles.legendChipActiveFast]}
-              onPress={() => setSelectedRoute('fast')}
-            >
-              <View style={[styles.legendColorDot, { backgroundColor: '#DC2626' }]} />
-              <Text style={[styles.legendText, !isSafe && styles.legendTextActive]}>Rute Biasa</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
-      {/* ================= 3. BOTTOM SHEETS DEPENDING ON APP STATE ================= */}
-
-      {/* STATE A: idle_explore -> IdleSearchBarBottomSheet */}
-      {appState === 'idle_explore' && (
-        <View style={styles.idleBottomSheetContainer}>
-          <View style={styles.sheetHandlePill} />
-
-          {/* Search Input Trigger */}
-          <View style={styles.idleSearchRow}>
-            <SearchIcon color="#64748B" size={18} />
-            <TextInput
-              style={styles.idleSearchInput}
-              placeholder="Cari rute teraman ke mana malam ini?"
-              placeholderTextColor="#94A3B8"
-              value={searchInputValue}
-              onChangeText={setSearchInputValue}
-              onSubmitEditing={handleSearchSubmit}
-              returnKeyType="search"
-            />
-            <TouchableOpacity
-              style={styles.idleSearchSubmitBtn}
-              onPress={handleSearchSubmit}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.idleSearchSubmitText}>Cari</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Quick Saved Places Row */}
-          <View style={styles.savedPlacesContainer}>
-            <Text style={styles.savedPlacesTitle}>Tujuan Cepat Tersimpan</Text>
-            <View style={styles.savedPlacesRow}>
+            {/* Travel Mode Selector Tabs */}
+            <View style={styles.travelModeRow}>
               <TouchableOpacity
-                style={styles.savedPlaceChip}
-                onPress={() => handleSelectDestination('Rumah')}
-                activeOpacity={0.8}
+                style={[styles.modeTab, travelMode === 'walk' && styles.modeTabActive]}
+                onPress={() => setTravelMode('walk')}
+                activeOpacity={0.75}
               >
-                <HomeOutlineIcon color="#0284C7" size={16} />
-                <Text style={styles.savedPlaceText}>Rumah</Text>
+                <WalkingIcon size={16} color={travelMode === 'walk' ? '#0B0F19' : DashboardTheme.colors.textSecondary} />
+                <Text style={[styles.modeTabLabel, travelMode === 'walk' && styles.modeTabLabelActive]}>
+                  Jalan Kaki • 14 mnt
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.savedPlaceChip}
-                onPress={() => handleSelectDestination('Kampus')}
-                activeOpacity={0.8}
+                style={[styles.modeTab, travelMode === 'motor' && styles.modeTabActive]}
+                onPress={() => setTravelMode('motor')}
+                activeOpacity={0.75}
               >
-                <SchoolOutlineIcon color="#0284C7" size={16} />
-                <Text style={styles.savedPlaceText}>Kampus</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.savedPlaceChip}
-                onPress={() => handleSelectDestination('Kantor / Shift')}
-                activeOpacity={0.8}
-              >
-                <BriefcaseOutlineIcon color="#0284C7" size={16} />
-                <Text style={styles.savedPlaceText}>Kantor / Shift</Text>
+                <MotorcycleIcon size={16} color={travelMode === 'motor' ? '#0B0F19' : DashboardTheme.colors.textSecondary} />
+                <Text style={[styles.modeTabLabel, travelMode === 'motor' && styles.modeTabLabelActive]}>
+                  Motor • 7 mnt
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Nearby Hazard Alert Pill */}
-          <View style={styles.hazardAlertPill}>
-            <Text style={styles.hazardAlertPillText}>
-              ⚠️ 1 Klaster Rawan aktif terdeteksi 1.2 km dari Anda
-            </Text>
+          {/* Bottom Route Comparison Sheet */}
+          <View style={styles.previewBottomSheetWrap}>
+            <RouteSelectionSheet
+              selectedRoute={selectedRoute}
+              onSelectRoute={setSelectedRoute}
+              onShareTrip={handleShareTrip}
+              onStartNavigation={handleStartNavigation}
+              isNavigating={false}
+            />
           </View>
         </View>
       )}
 
-      {/* STATE B: route_preview_active -> RouteComparisonBottomSheet */}
-      {appState === 'route_preview_active' && (
-        <View style={styles.bottomSheetContainer}>
-          <View style={styles.sheetHandlePill} />
+      {/* ================= 4. KONDISI 3: ACTIVE TURN-BY-TURN NAVIGATION ================= */}
+      {mapFlowState === 'active_navigation' && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          {/* Top Sticky HUD Overlays */}
+          <View style={[styles.activeTopOverlay, { paddingTop: safeTop + 8 }]} pointerEvents="box-none">
+            {/* Header Line */}
+            <NavigationHeaderOverlay
+              isVoiceActive={isVoiceActive}
+              onBackPress={handleExitNavigation}
+              onToggleVoice={handleToggleVoice}
+              onSosPress={handleSosPress}
+            />
 
-          {/* Route Preview Header with Reset/Cancel action */}
-          <View style={styles.routePreviewHeaderBar}>
-            <View style={styles.routeDestinationPill}>
-              <Text style={styles.routeDestinationLabel}>
-                Tujuan: <Text style={styles.routeDestinationName}>{selectedDestination}</Text>
-              </Text>
+            {/* Big Green Turn-by-Turn Card */}
+            <View style={styles.cardSpacing}>
+              <TurnByTurnCard />
             </View>
 
-            <TouchableOpacity
-              style={styles.cancelPreviewBtn}
-              onPress={handleCancelRoutePreview}
-              activeOpacity={0.75}
-            >
-              <Text style={styles.cancelPreviewText}>✕ Kembali ke Jelajah</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* 3.1 Segmented Control */}
-          <View style={styles.segmentedControlContainer}>
-            <TouchableOpacity
-              style={[
-                styles.segmentedButton,
-                isSafe && styles.segmentedButtonActive,
-              ]}
-              onPress={() => setSelectedRoute('safe')}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  styles.segmentedButtonText,
-                  isSafe && styles.segmentedButtonTextActive,
-                ]}
-              >
-                🛡️ Safest Route
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.segmentedButton,
-                !isSafe && styles.segmentedButtonActiveAlert,
-              ]}
-              onPress={() => setSelectedRoute('fast')}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  styles.segmentedButtonText,
-                  !isSafe && styles.segmentedButtonTextActiveAlert,
-                ]}
-              >
-                ⚠️ Fastest Route
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* 3.2 Route Header Summary */}
-          <View style={styles.routeHeaderSummary}>
-            <View style={styles.durationDistanceCol}>
-              <Text style={styles.durationHeading}>{durationText}</Text>
-              <Text style={styles.distanceSubtext}>{distanceText}</Text>
-            </View>
-
-            <View
-              style={[
-                styles.safetyScoreBadge,
-                isSafe ? styles.badgeSafeGreen : styles.badgeWarningRed,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.safetyScoreText,
-                  isSafe ? styles.scoreTextGreen : styles.scoreTextRed,
-                ]}
-              >
-                {safetyScoreText}
-              </Text>
+            {/* Spatial Hazard Alert Banner (Conditional) */}
+            <View style={styles.cardSpacing}>
+              <SpatialHazardBanner
+                isVisible={isHazardVisible}
+                onDismiss={handleDismissHazard}
+                onApplyDeviation={handleApplyDeviation}
+                onIgnoreHazard={handleIgnoreHazard}
+              />
             </View>
           </View>
 
-          {/* 3.3 Comparative Metrics Row */}
-          <View style={styles.comparativeMetricsRow}>
-            <View style={styles.metricCard}>
-              <Text style={styles.metricCardLabel}>Streetlight Density</Text>
-              <Text
-                style={[
-                  styles.metricCardValue,
-                  isSafe ? styles.textGreenHighlight : styles.textRedHighlight,
-                ]}
-              >
-                {streetlightValue}
-              </Text>
-            </View>
-
-            <View style={styles.metricCard}>
-              <Text style={styles.metricCardLabel}>Risk Clusters Avoided</Text>
-              <Text
-                style={[
-                  styles.metricCardValue,
-                  isSafe ? styles.textGreenHighlight : styles.textRedHighlight,
-                ]}
-              >
-                {riskClustersValue}
-              </Text>
-            </View>
-
-            {/* Metric 3: Active Safe Shelters Card */}
-            <TouchableOpacity
-              style={styles.metricCard}
-              onPress={handleSheltersPress}
-              activeOpacity={0.75}
-              testID="active-safe-shelters-card"
-              accessibilityLabel="Active Safe Shelters Card"
-              accessibilityRole="button"
-            >
-              <Text style={styles.metricCardLabel}>Active Safe Shelters ↗</Text>
-              <Text style={[styles.metricCardValue, { color: '#0284C7' }]}>{sheltersValue}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* 3.4 Main Navigation Action Button */}
-          <TouchableOpacity
+          {/* Bottom Navigation Cockpit Bar (Replaces Tab Bar ala Google Maps) */}
+          <View
             style={[
-              styles.actionButton,
-              isSafe ? styles.actionButtonSafe : styles.actionButtonWarning,
+              styles.cockpitBottomBar,
+              { paddingBottom: safeBottom + 4 },
             ]}
-            onPress={handleStartNavigation}
-            activeOpacity={0.88}
-            testID="start-safe-navigation-button"
-            accessibilityLabel="'Start Safe Navigation' Primary Button"
-            accessibilityRole="button"
           >
-            <Text style={styles.actionButtonText}>{actionButtonText}</Text>
-          </TouchableOpacity>
+            {/* Left Trip Telemetry */}
+            <View style={styles.cockpitMetricsCol}>
+              <View style={styles.cockpitEtaRow}>
+                <Text style={styles.cockpitEtaMinutes}>14</Text>
+                <Text style={styles.cockpitEtaUnit}>mnt</Text>
+                <Text style={styles.cockpitSubtext}>• 2.4 km • Tiba 21:44</Text>
+              </View>
+              <View style={styles.cockpitSafetyBadge}>
+                <Text style={styles.cockpitSafetyBadgeText}>
+                  🛡️ 4 CCTV & 3 Patroller Siaga
+                </Text>
+              </View>
+            </View>
+
+            {/* Right Action Group: SOS & Exit */}
+            <View style={styles.cockpitActionsRow}>
+              {/* Discreet SOS Button */}
+              <TouchableOpacity
+                style={styles.cockpitSosBtn}
+                onPress={handleSosPress}
+                activeOpacity={0.8}
+                accessibilityLabel="Panggil Bantuan SOS"
+              >
+                <Text style={styles.cockpitSosText}>SOS</Text>
+              </TouchableOpacity>
+
+              {/* End / Exit Navigation Button */}
+              <TouchableOpacity
+                style={styles.cockpitExitBtn}
+                onPress={handleExitNavigation}
+                activeOpacity={0.8}
+                accessibilityLabel="Hentikan dan keluar dari navigasi"
+              >
+                <CloseIcon size={18} color="#FFFFFF" />
+                <Text style={styles.cockpitExitText}>Selesai</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       )}
 
-      {/* ================= 4. BOTTOM NAVIGATION BAR ================= */}
-      <BottomNavigationBar
-        activeTab="navigasi"
-        onTabPress={(tabId) => {
-          if (tabId === 'info') router.push('/explore');
-          else if (tabId === 'lapor') handleReportPress();
-        }}
-        onLaporPress={handleReportPress}
-      />
+      {/* ================= 5. PERSISTENT FLOATING BOTTOM NAV (HIDDEN IN ACTIVE NAV) ================= */}
+      {mapFlowState !== 'active_navigation' && (
+        <DashboardBottomNav
+          activeTab="routes"
+          onTabPress={handleTabPress}
+          onSosPress={() => setIsSosModalVisible(true)}
+        />
+      )}
 
-      {/* ================= 5. FEATURE MODALS ================= */}
-      <IncidentReportModal
-        visible={isReportModalVisible}
-        onClose={() => setIsReportModalVisible(false)}
-      />
+      {/* Emergency SOS Modal */}
       <EmergencySOSModal
-        visible={isSOSModalVisible}
-        onDismiss={() => setIsSOSModalVisible(false)}
-        onEvacuationStart={() => {
-          setIsSOSModalVisible(false);
-          setAppState('turn_by_turn_nav');
+        visible={isSosModalVisible}
+        onDismiss={() => setIsSosModalVisible(false)}
+      />
+
+      {/* Item 1: Professional Full Search & Saved Places Modal */}
+      <SearchSuggestionModal
+        visible={isSearchModalVisible}
+        onDismiss={() => setIsSearchModalVisible(false)}
+        onSelectPlace={handleSelectPlace}
+        initialQuery={searchQuery}
+      />
+
+      {/* Item 2: Professional Map Layer & Spatial Filter Sheet */}
+      <MapLayersModal
+        visible={isLayersModalVisible}
+        onDismiss={() => setIsLayersModalVisible(false)}
+        config={layerConfig}
+        onChangeConfig={handleChangeLayerConfig}
+      />
+
+      {/* Arrival Success & Guardians Safe Notification Modal */}
+      <ArrivalSuccessModal
+        visible={isArrivalModalVisible}
+        onReturnHome={handleReturnFromArrival}
+      />
+
+      {/* 5-Star Route Feedback Sheet */}
+      <RouteFeedbackSheet
+        visible={isFeedbackSheetVisible}
+        onClose={handleCloseFeedback}
+      />
+
+      {/* Notification Center Modal */}
+      <NotificationCenterModal
+        visible={isNotifModalVisible}
+        onDismiss={() => setIsNotifModalVisible(false)}
+        onNavigateToMap={() => {
+          setIsNotifModalVisible(false);
+          setMapFlowState('idle_explore');
+        }}
+        onNavigateToReport={() => {
+          setIsNotifModalVisible(false);
+          router.push('/report');
+        }}
+        onNavigateToGuardian={() => {
+          setIsNotifModalVisible(false);
+          router.push('/profile');
         }}
       />
-      <SafeHavenDirectoryModal
-        visible={isShelterModalVisible}
-        onClose={() => setIsShelterModalVisible(false)}
-        onReroute={() => {
-          setIsShelterModalVisible(false);
-          setAppState('turn_by_turn_nav');
-        }}
-      />
-    </SafeAreaView>
+    </View>
   );
 }
 
-export default MainRouteNavigationScreen;
+export { NavigationHomeScreen as ActiveSafeNavigationScreen };
+export default NavigationHomeScreen;
 
 const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-
-  /* ================= 1. TOP RADAR BANNER ================= */
-  topRadarBanner: {
-    backgroundColor: '#E0F2FE',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    zIndex: 10,
-  },
-  pulseDotContainer: {
-    width: 16,
-    height: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-  },
-  radarPulseRing: {
-    position: 'absolute',
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#0284C7',
-  },
-  pulseDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#0284C7',
-  },
-  radarLabel: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#0369A1',
-    letterSpacing: -0.1,
-  },
-  radarStatusPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    backgroundColor: 'rgba(2, 132, 199, 0.15)',
-  },
-  radarStatusText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#0284C7',
-    letterSpacing: 0.5,
-  },
-
-  /* ================= 2. VECTOR MAP CANVAS ================= */
-  mapCanvasContainer: {
-    flex: 1,
+    backgroundColor: '#0B0F19',
     position: 'relative',
-    backgroundColor: '#F8FAFC',
-    overflow: 'hidden',
+  },
+  mapCanvasWrapper: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 1,
   },
 
-  /* Layer Switcher (Top Left) */
-  layerSwitcherContainer: {
+  /* State 1: Idle Explore */
+  idleTopOverlay: {
     position: 'absolute',
-    top: 16,
-    left: 16,
-    zIndex: 25,
-  },
-  floatingLayerButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.12,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
-      default: {
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.12)',
-      },
-    }),
-  },
-  layerOptionsDropdown: {
-    position: 'absolute',
-    top: 50,
+    top: 0,
     left: 0,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 6,
-    width: 175,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    right: 0,
     zIndex: 30,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-      default: {
-        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.15)',
-      },
-    }),
-  },
-  layerOptionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    gap: 8,
-  },
-  layerOptionItemActive: {
-    backgroundColor: '#F0F9FF',
-  },
-  styleColorDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-  },
-  layerOptionText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  layerOptionTextActive: {
-    color: '#0284C7',
-    fontWeight: '700',
-  },
-
-  /* SOS Button (Top Right) */
-  sosFloatingButton: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#DC2626',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#DC2626',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.35,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 6,
-      },
-      default: {
-        boxShadow: '0 4px 12px rgba(220, 38, 38, 0.35)',
-      },
-    }),
-  },
-  sosButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-
-  /* Recenter GPS Button (Bottom Right above sheet) */
-  recenterGpsButton: {
-    position: 'absolute',
-    bottom: 16,
-    right: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    zIndex: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.12,
-        shadowRadius: 5,
-      },
-      android: {
-        elevation: 4,
-      },
-      default: {
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.12)',
-      },
-    }),
-  },
-
-  mapLegendOverlay: {
-    position: 'absolute',
-    bottom: 16,
-    left: 14,
-    flexDirection: 'row',
-    gap: 8,
-    zIndex: 20,
-  },
-  legendChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  legendChipActiveSafe: {
-    borderColor: '#0284C7',
-    backgroundColor: '#F0F9FF',
-  },
-  legendChipActiveFast: {
-    borderColor: '#DC2626',
-    backgroundColor: '#FEF2F2',
-  },
-  legendColorDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  legendText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  legendTextActive: {
-    color: '#0F172A',
-    fontWeight: '700',
-  },
-
-  /* ================= 3.A IDLE SEARCH BOTTOM SHEET ================= */
-  idleBottomSheetContainer: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 14,
+  },
+
+  /* State 2: Route Preview */
+  previewContainer: {
+    ...StyleSheet.absoluteFill,
     zIndex: 30,
+    justifyContent: 'space-between',
+  },
+  routeHeaderCard: {
+    marginHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(226, 232, 240, 0.9)',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: -3 },
-        shadowOpacity: 0.08,
-        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.14,
+        shadowRadius: 12,
       },
       android: {
         elevation: 8,
       },
-      default: {
-        boxShadow: '0 -4px 16px rgba(0, 0, 0, 0.06)',
-      },
     }),
+    gap: 12,
   },
-  idleSearchRow: {
+  routeHeaderTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 12,
-    gap: 8,
+    gap: 10,
   },
-  idleSearchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: '#0F172A',
-    paddingVertical: 2,
-  },
-  idleSearchSubmitBtn: {
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  idleSearchSubmitText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  savedPlacesContainer: {
-    marginBottom: 10,
-  },
-  savedPlacesTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#64748B',
-    marginBottom: 8,
-  },
-  savedPlacesRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  savedPlaceChip: {
-    flex: 1,
-    flexDirection: 'row',
+  backCircleBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F0F9FF',
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-    paddingVertical: 8,
-    borderRadius: 10,
+  },
+  pointsColumn: {
+    flex: 1,
     gap: 6,
   },
-  savedPlaceText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0284C7',
-  },
-  hazardAlertPill: {
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  hazardAlertPillText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#D97706',
-  },
-
-  /* ================= 3.B ROUTE COMPARISON BOTTOM SHEET ================= */
-  bottomSheetContainer: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 16,
-    zIndex: 30,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: -3 },
-        shadowOpacity: 0.08,
-        shadowRadius: 10,
-      },
-      android: {
-        elevation: 10,
-      },
-      default: {
-        boxShadow: '0 -4px 16px rgba(0, 0, 0, 0.06)',
-      },
-    }),
-  },
-  sheetHandlePill: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#CBD5E1',
-    alignSelf: 'center',
-    marginBottom: 10,
-  },
-  routePreviewHeaderBar: {
+  pointRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    gap: 8,
   },
-  routeDestinationPill: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+  originDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#0284C7',
   },
-  routeDestinationLabel: {
-    fontSize: 12,
+  destDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#A3E635',
+  },
+  pointsDivider: {
+    width: 2,
+    height: 8,
+    backgroundColor: '#CBD5E1',
+    marginLeft: 3.5,
+  },
+  pointText: {
+    fontSize: 13,
     color: '#64748B',
+    fontWeight: '500',
+    flexShrink: 1,
   },
-  routeDestinationName: {
-    fontWeight: '800',
+  destText: {
+    fontSize: 14,
     color: '#0F172A',
+    fontWeight: '700',
   },
-  cancelPreviewBtn: {
+  cancelTextBtn: {
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  cancelPreviewText: {
-    fontSize: 12,
+  cancelTextBtnLabel: {
+    fontSize: 13,
     fontWeight: '700',
     color: '#DC2626',
   },
-
-  /* 3.1 Segmented Control */
-  segmentedControlContainer: {
+  travelModeRow: {
     flexDirection: 'row',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
-    padding: 3,
-    marginBottom: 14,
-  },
-  segmentedButton: {
-    flex: 1,
-    paddingVertical: 8,
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
+    gap: 8,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
   },
-  segmentedButtonActive: {
-    backgroundColor: '#FFFFFF',
+  modeTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#F8FAFC',
+  },
+  modeTabActive: {
+    backgroundColor: DashboardTheme.colors.primary,
+  },
+  modeTabLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: DashboardTheme.colors.textSecondary,
+  },
+  modeTabLabelActive: {
+    color: '#0B0F19',
+    fontWeight: '800',
+  },
+  previewBottomSheetWrap: {
+    width: '100%',
+    paddingBottom: 85, // clearance above bottom nav
+  },
+
+  /* State 3: Active Navigation */
+  activeTopOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 40,
+    gap: 10,
+  },
+  cardSpacing: {
+    paddingHorizontal: 16,
+  },
+  cockpitBottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#0F172A',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 16,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    zIndex: 50,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 2,
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
       },
       android: {
-        elevation: 1,
+        elevation: 12,
       },
     }),
   },
-  segmentedButtonActiveAlert: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
+  cockpitMetricsCol: {
+    flex: 1,
+    gap: 4,
   },
-  segmentedButtonText: {
-    fontSize: 13,
+  cockpitEtaRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  cockpitEtaMinutes: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#A3E635',
+    letterSpacing: -0.5,
+  },
+  cockpitEtaUnit: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#A3E635',
+  },
+  cockpitSubtext: {
+    fontSize: 12,
     fontWeight: '600',
-    color: '#64748B',
+    color: '#94A3B8',
   },
-  segmentedButtonTextActive: {
-    color: '#0284C7',
-    fontWeight: '700',
+  cockpitSafetyBadge: {
+    backgroundColor: 'rgba(163, 230, 53, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
   },
-  segmentedButtonTextActiveAlert: {
-    color: '#DC2626',
-    fontWeight: '700',
-  },
-
-  /* 3.2 Route Header Summary */
-  routeHeaderSummary: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  durationDistanceCol: {
-    flex: 1,
-  },
-  durationHeading: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#0F172A',
-    letterSpacing: -0.4,
-  },
-  distanceSubtext: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#64748B',
-    marginTop: 2,
-  },
-  safetyScoreBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  badgeSafeGreen: {
-    backgroundColor: '#D1FAE5',
-  },
-  badgeWarningRed: {
-    backgroundColor: '#FEE2E2',
-  },
-  safetyScoreText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  scoreTextGreen: {
-    color: '#059669',
-  },
-  scoreTextRed: {
-    color: '#DC2626',
-  },
-
-  /* 3.3 Comparative Metrics Row */
-  comparativeMetricsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  metricCard: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    padding: 10,
-    justifyContent: 'space-between',
-  },
-  metricCardLabel: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: '#64748B',
-    marginBottom: 4,
-  },
-  metricCardValue: {
+  cockpitSafetyBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#A3E635',
   },
-  textGreenHighlight: {
-    color: '#059669',
+  cockpitActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  textRedHighlight: {
-    color: '#DC2626',
-  },
-
-  /* 3.4 Action Button */
-  actionButton: {
-    height: 48,
-    borderRadius: 12,
+  cockpitSosBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(220, 38, 38, 0.2)',
+    borderWidth: 1.5,
+    borderColor: '#DC2626',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionButtonSafe: {
-    backgroundColor: '#0284C7',
+  cockpitSosText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#EF4444',
   },
-  actionButtonWarning: {
+  cockpitExitBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: '#DC2626',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
   },
-  actionButtonText: {
+  cockpitExitText: {
+    fontSize: 13,
+    fontWeight: '800',
     color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: -0.2,
   },
 });

@@ -80,31 +80,71 @@ func main() {
 		}
 	}()
 
-	// 3. Database Migration & Seeding Akun Superadmin
+	// 3. Database Migration & Seeding (Users, Incidents, Shelters)
 	userRepo := repository.NewPostgresUserRepository(db)
 	if err := userRepo.AutoMigrateAndSeed(context.Background(), cfg.SuperadminName, cfg.SuperadminEmail, cfg.SuperadminPassword); err != nil {
-		log.Fatalf("[Database Migration Error] Gagal migrasi & seeding: %v\n", err)
+		log.Fatalf("[Database Migration Error] Gagal migrasi & seeding users: %v\n", err)
+	}
+
+	incidentRepo := repository.NewPostgresIncidentRepository(db)
+	if err := incidentRepo.AutoMigrateAndSeed(context.Background()); err != nil {
+		log.Fatalf("[Database Migration Error] Gagal migrasi & seeding incidents: %v\n", err)
+	}
+
+	shelterRepo := repository.NewPostgresShelterRepository(db)
+	if err := shelterRepo.AutoMigrateAndSeed(context.Background()); err != nil {
+		log.Fatalf("[Database Migration Error] Gagal migrasi & seeding shelters: %v\n", err)
+	}
+
+	notificationRepo := repository.NewPostgresNotificationRepository(db)
+	if err := notificationRepo.AutoMigrateAndSeed(context.Background()); err != nil {
+		log.Fatalf("[Database Migration Error] Gagal migrasi & seeding notifications: %v\n", err)
+	}
+
+	settingsRepo := repository.NewPostgresSettingsRepository(db)
+	if err := settingsRepo.AutoMigrateAndSeed(context.Background()); err != nil {
+		log.Fatalf("[Database Migration Error] Gagal migrasi user_settings: %v\n", err)
+	}
+
+	tripRepo := repository.NewPostgresTripRepository(db)
+	if err := tripRepo.AutoMigrate(context.Background()); err != nil {
+		log.Fatalf("[Database Migration Error] Gagal migrasi trip_history: %v\n", err)
 	}
 
 	// 4. Dependency Injection (SOLID: Inversion of Control & Clean Architecture)
-	// Repository Layer
-	incidentRepo := repository.NewPostgresIncidentRepository(db)
-
 	// Service Layer (Business Logic)
-	incidentService := service.NewIncidentService(incidentRepo)
-	authService := service.NewAuthService(userRepo, cfg.JWTSecret, cfg.JWTExpireHours)
+	incidentService := service.NewIncidentService(incidentRepo, userRepo, notificationRepo, settingsRepo)
+	shelterService := service.NewShelterService(shelterRepo)
+	authService := service.NewAuthService(userRepo, notificationRepo, cfg.JWTSecret, cfg.JWTExpireHours)
+	adminService := service.NewAdminService(userRepo, incidentRepo, shelterRepo)
+	notificationService := service.NewNotificationService(notificationRepo)
+	settingsService := service.NewSettingsService(settingsRepo)
+	mapService := service.NewMapService()
+	tripService := service.NewTripService(tripRepo, settingsRepo, cfg.JWTSecret)
 
 	// Controller Layer (HTTP Transport)
 	incidentController := controller.NewIncidentController(incidentService)
+	shelterController := controller.NewShelterController(shelterService)
 	healthController := controller.NewHealthController(db)
 	authController := controller.NewAuthController(authService)
+	adminController := controller.NewAdminController(adminService)
+	notificationController := controller.NewNotificationController(notificationService)
+	settingsController := controller.NewSettingsController(settingsService)
+	mapController := controller.NewMapController(mapService)
+	tripController := controller.NewTripController(tripService)
 
 	// 5. Setup Routing & Middleware
 	handlers := route.Handlers{
-		Health:    healthController,
-		Incident:  incidentController,
-		Auth:      authController,
-		JWTSecret: cfg.JWTSecret,
+		Health:       healthController,
+		Incident:     incidentController,
+		Shelter:      shelterController,
+		Auth:         authController,
+		Admin:        adminController,
+		Notification: notificationController,
+		Settings:     settingsController,
+		Map:          mapController,
+		Trip:         tripController,
+		JWTSecret:    cfg.JWTSecret,
 	}
 	router := route.SetupRouter(handlers)
 

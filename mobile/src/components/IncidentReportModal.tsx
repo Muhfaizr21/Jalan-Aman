@@ -10,8 +10,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import { useIncidents } from '@/hooks/useIncidents';
+import { useAuth } from '@/hooks/useAuth';
+import { useNotifications } from '@/hooks/useNotifications';
 
 export interface IncidentReportModalProps {
   visible: boolean;
@@ -199,27 +203,49 @@ export function IncidentReportModal({
     );
   };
 
-  const handleSubmitReport = () => {
+  const { submitReport } = useIncidents(false);
+  const { user } = useAuth();
+  const { refetch: refetchNotifications } = useNotifications();
+
+  const handleSubmitReport = async () => {
+    if (!chronologyText.trim()) {
+      Alert.alert('Kronologi Diperlukan', 'Mohon isi catatan atau kronologi kondisi jalan.');
+      return;
+    }
+
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const categoryMap: Record<CategoryId, { name: string; title: string; severity: 'Low' | 'Moderate' | 'High' | 'Critical' }> = {
+        begal: { name: 'Rawan Kejahatan', title: 'Laporan Titik Begal / Curas', severity: 'High' },
+        pju_padam: { name: 'Penerangan Jalan', title: 'Lampu PJU Padam / Mati', severity: 'Moderate' },
+        jalan_rusak: { name: 'Infrastruktur Jalan', title: 'Jalan Rusak & Berlubang', severity: 'Moderate' },
+        sepi_rawan: { name: 'Area Rawan & Gelap', title: 'Jalan Sepi Minim Penerangan', severity: 'Low' },
+      };
+
+      const meta = categoryMap[selectedCategory] || categoryMap.pju_padam;
+      const created = await submitReport({
+        title: meta.title,
+        category: meta.name,
+        description: chronologyText.trim(),
+        latitude: -6.4725,
+        longitude: 108.3120,
+        address: 'Jl. Mayor Dasuki, Jatibarang, Indramayu',
+        severity: meta.severity,
+      });
+
+      // Sync notification center with new incident from PostgreSQL
+      await refetchNotifications();
+
       Alert.alert(
-        '✅ Laporan Berhasil Dikirim',
-        'Laporan kondisi jalan Anda telah masuk ke sistem moderasi crowdsourcing dan diteruskan ke pemetaan spasial rute.',
+        '✅ Laporan Tersimpan di Database',
+        `Laporan Anda berhasil dicatat ke sistem PostgreSQL JalanAman (+5 Poin Reputasi).\n\nID: ${created.id}\nStatus: Terverifikasi`,
         [
           {
             text: 'Selesai',
             onPress: () => {
               if (onSubmitSuccess) {
-                onSubmitSuccess({
-                  category: selectedCategory,
-                  notes: chronologyText,
-                  hasPhoto: hasPhotoProof,
-                  location: 'Dekat Klaster Jl. Pantura - Jatibarang',
-                  timestamp: new Date().toISOString(),
-                });
+                onSubmitSuccess(created);
               }
-              // Reset form
               setChronologyText('');
               setHasPhotoProof(false);
               onClose();
@@ -227,7 +253,11 @@ export function IncidentReportModal({
           },
         ]
       );
-    }, 800);
+    } catch (err: any) {
+      Alert.alert('Gagal Mengirim Laporan', err?.message || 'Terjadi kesalahan saat menghubungi server.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const renderCategoryIcon = (iconType: string, badgeColor: string) => {

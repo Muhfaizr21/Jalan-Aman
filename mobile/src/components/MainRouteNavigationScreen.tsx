@@ -1,1 +1,1 @@
-export { MainRouteNavigationScreen as default, MainRouteNavigationScreen } from '@/app/index';
+export { default, DashboardScreen, DashboardScreen as MainRouteNavigationScreen } from '@/app/radar';

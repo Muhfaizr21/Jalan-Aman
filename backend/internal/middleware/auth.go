@@ -60,8 +60,40 @@ func RequireAuth(jwtSecret string) Middleware {
 	}
 }
 
-// RequireRole memverifikasi bahwa peran pengguna dalam token sesuai
-func RequireRole(role model.UserRole) Middleware {
+// OptionalAuth mengekstrak claims jika token JWT tersedia tanpa memblokir guest
+func OptionalAuth(jwtSecret string) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			tokenString := ""
+
+			authHeader := r.Header.Get("Authorization")
+			if authHeader != "" {
+				parts := strings.Split(authHeader, " ")
+				if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+					tokenString = parts[1]
+				}
+			}
+
+			if tokenString == "" {
+				if cookie, err := r.Cookie("jalanaman_token"); err == nil {
+					tokenString = cookie.Value
+				}
+			}
+
+			if tokenString != "" {
+				if claims, err := auth.ValidateToken(tokenString, jwtSecret); err == nil {
+					ctx := context.WithValue(r.Context(), claimsContextKey, claims)
+					r = r.WithContext(ctx)
+				}
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RequireRole memverifikasi bahwa peran pengguna dalam token termasuk dalam daftar peran yang diizinkan (Open/Closed Principle)
+func RequireRole(roles ...model.UserRole) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			claims, ok := GetClaimsFromContext(r.Context())
@@ -70,8 +102,16 @@ func RequireRole(role model.UserRole) Middleware {
 				return
 			}
 
-			if claims.Role != role {
-				response.Error(w, http.StatusForbidden, "Akses ditolak. Peran "+string(role)+" diperlukan.")
+			hasRole := false
+			for _, role := range roles {
+				if claims.Role == role {
+					hasRole = true
+					break
+				}
+			}
+
+			if !hasRole {
+				response.Error(w, http.StatusForbidden, "Akses ditolak. Anda tidak memiliki izin untuk mengakses resource ini.")
 				return
 			}
 

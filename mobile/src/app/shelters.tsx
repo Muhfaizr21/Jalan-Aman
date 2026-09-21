@@ -8,15 +8,18 @@ import {
   Platform,
   Alert,
   StatusBar,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import { useShelters } from '@/hooks/useShelters';
 
 export interface ShelterCardData {
   id: string;
   name: string;
-  category: 'police' | 'store24' | 'pos_satpam';
+  category: 'police' | 'store24' | 'pos_satpam' | 'hospital';
   category_badge: {
     label: string;
     bg_color: string;
@@ -35,75 +38,6 @@ export interface ShelterCardData {
     type: string;
   };
 }
-
-const SHELTER_LIST_DATA: ShelterCardData[] = [
-  {
-    id: 'sh_01',
-    name: 'Polsek Jatibarang',
-    category: 'police',
-    category_badge: {
-      label: 'Pos Polisi',
-      bg_color: '#E0F2FE',
-      text_color: '#0284C7',
-    },
-    status_badge: {
-      label: 'Siaga 24 Jam',
-      bg_color: '#D1FAE5',
-      text_color: '#059669',
-    },
-    distance: '320 m',
-    eta: '1 mnt',
-    address: 'Jl. Mayor Dasuki No. 12',
-    action: {
-      label: 'Arahkan Rute',
-      type: 'route_reroute',
-    },
-  },
-  {
-    id: 'sh_02',
-    name: 'Indomaret 24 Jam Bulak',
-    category: 'store24',
-    category_badge: {
-      label: 'Retail 24 Jam',
-      bg_color: '#FEF3C7',
-      text_color: '#D97706',
-    },
-    status_badge: {
-      label: 'Buka',
-      bg_color: '#D1FAE5',
-      text_color: '#059669',
-    },
-    distance: '580 m',
-    eta: '2 mnt',
-    address: 'Jl. Raya Bulak No. 45',
-    action: {
-      label: 'Arahkan Rute',
-      type: 'route_reroute',
-    },
-  },
-  {
-    id: 'sh_03',
-    name: 'Pos Satpam Perum Griya',
-    category: 'pos_satpam',
-    category_badge: {
-      label: 'Pos Satpam',
-      bg_color: '#F1F5F9',
-      text_color: '#475569',
-    },
-    status_badge: {
-      label: 'Penjagaan Aktif',
-      bg_color: '#D1FAE5',
-      text_color: '#059669',
-    },
-    distance: '850 m',
-    eta: '3 mnt',
-    address: 'Gerbang Utama Griya Jatibarang',
-    action: {
-      label: 'Arahkan Rute',
-      type: 'route_reroute',
-    },
-  },
-];
 
 /* ================= VECTOR ICONS ================= */
 function ArrowBackIcon({ color = '#0F172A', size = 22 }: { color?: string; size?: number }) {
@@ -209,12 +143,21 @@ function ClockSmallIcon({ color = '#059669', size = 14 }: { color?: string; size
 export function SafeHavenDirectoryScreen() {
   const insets = useSafeAreaInsets();
   const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [refreshing, setRefreshing] = useState(false);
+  const { rawShelters, isLoading, error, refetch } = useShelters();
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  };
 
   const filterChips = [
     { id: 'all', label: 'Semua Titik', icon: null },
     { id: 'police', label: 'Pos Polisi', icon: 'shield-check' },
     { id: 'store24', label: 'Retail 24 Jam', icon: 'store' },
     { id: 'pos_satpam', label: 'Pos Satpam', icon: 'account-group' },
+    { id: 'hospital', label: 'Rumah Sakit', icon: 'shield-check' },
   ];
 
   const handleBack = () => {
@@ -250,10 +193,42 @@ export function SafeHavenDirectoryScreen() {
     );
   };
 
+  const allShelters: ShelterCardData[] = rawShelters.map((s) => {
+    let categoryBadge = { label: 'Safe Haven', bg_color: '#F1F5F9', text_color: '#475569' };
+    if (s.category === 'police') {
+      categoryBadge = { label: 'Pos Polisi', bg_color: '#E0F2FE', text_color: '#0284C7' };
+    } else if (s.category === 'store24') {
+      categoryBadge = { label: 'Retail 24 Jam', bg_color: '#FEF3C7', text_color: '#D97706' };
+    } else if (s.category === 'pos_satpam') {
+      categoryBadge = { label: 'Pos Satpam', bg_color: '#F1F5F9', text_color: '#475569' };
+    } else if (s.category === 'hospital') {
+      categoryBadge = { label: 'Rumah Sakit', bg_color: '#FEE2E2', text_color: '#DC2626' };
+    }
+
+    return {
+      id: s.id,
+      name: s.name,
+      category: s.category,
+      category_badge: categoryBadge,
+      status_badge: {
+        label: s.is_24h ? 'Siaga 24 Jam' : 'Operasional Aktif',
+        bg_color: '#D1FAE5',
+        text_color: '#059669',
+      },
+      distance: s.distance,
+      eta: s.eta,
+      address: s.address,
+      action: {
+        label: 'Arahkan Rute',
+        type: 'route_reroute',
+      },
+    };
+  });
+
   const filteredShelters =
     activeFilter === 'all'
-      ? SHELTER_LIST_DATA
-      : SHELTER_LIST_DATA.filter((s) => s.category === activeFilter);
+      ? allShelters
+      : allShelters.filter((s) => s.category === activeFilter);
 
   const renderFilterIcon = (iconName: string | null, isActive: boolean) => {
     if (!iconName) return null;
@@ -270,8 +245,96 @@ export function SafeHavenDirectoryScreen() {
     }
   };
 
+  const renderShelterList = () => {
+    if (isLoading && allShelters.length === 0) {
+      return <ActivityIndicator size="large" color="#0284C7" style={{ marginTop: 32 }} />;
+    }
+    if (filteredShelters.length === 0) {
+      return (
+        <View style={{ padding: 24, alignItems: 'center' }}>
+          <Text style={{ color: '#64748B', fontSize: 13, fontWeight: '600' }}>
+            Tidak ada titik safe haven untuk kategori ini.
+          </Text>
+        </View>
+      );
+    }
+    return filteredShelters.map((shelter) => (
+      <View key={shelter.id} style={styles.shelterCard}>
+        {/* Top Badges Row */}
+        <View style={styles.cardBadgesRow}>
+          <View
+            style={[
+              styles.categoryBadge,
+              { backgroundColor: shelter.category_badge.bg_color },
+            ]}
+          >
+            <Text
+              style={[
+                styles.categoryBadgeText,
+                { color: shelter.category_badge.text_color },
+              ]}
+            >
+              {shelter.category_badge.label}
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: shelter.status_badge.bg_color },
+            ]}
+          >
+            <View style={styles.statusDotGreen} />
+            <Text
+              style={[
+                styles.statusBadgeText,
+                { color: shelter.status_badge.text_color },
+              ]}
+            >
+              {shelter.status_badge.label}
+            </Text>
+          </View>
+        </View>
+
+        {/* Name & Address */}
+        <Text style={styles.shelterTitle}>{shelter.name}</Text>
+        <Text style={styles.shelterAddress}>{shelter.address}</Text>
+
+        {/* Distance, ETA & Divider */}
+        <View style={styles.metaRow}>
+          <View style={styles.metaChip}>
+            <PinSmallIcon color="#0284C7" size={13} />
+            <Text style={styles.metaChipText}>{shelter.distance}</Text>
+          </View>
+
+          <View style={styles.metaChip}>
+            <ClockSmallIcon color="#059669" size={13} />
+            <Text style={[styles.metaChipText, { color: '#059669' }]}>
+              {shelter.eta} berkendara
+            </Text>
+          </View>
+        </View>
+
+        {/* Action Button */}
+        <TouchableOpacity
+          style={styles.rerouteActionButton}
+          onPress={() => handleReroute(shelter)}
+          activeOpacity={0.88}
+        >
+          <NavigationRerouteIcon color="#FFFFFF" size={16} />
+          <Text style={styles.rerouteActionText}>
+            {shelter.action.label}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    ));
+  };
+
+  const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const safeTop = Math.max(insets.top, statusBarHeight);
+
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, { paddingTop: safeTop }]} edges={['left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* ================= HEADER: standard_top_bar ================= */}
@@ -330,6 +393,14 @@ export function SafeHavenDirectoryScreen() {
       {/* ================= BODY SECTIONS: shelter_list (vertical_card_list) ================= */}
       <ScrollView
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#0284C7']}
+            tintColor="#0284C7"
+          />
+        }
         contentContainerStyle={[
           styles.scrollListContent,
           { paddingBottom: Math.max(insets.bottom, 16) + 24 },
@@ -337,7 +408,7 @@ export function SafeHavenDirectoryScreen() {
       >
         <View style={styles.listHeaderRow}>
           <Text style={styles.listHeaderCount}>
-            Menampilkan {filteredShelters.length} Shelter Terdekat
+            Menampilkan {filteredShelters.length} Shelter Terdekat (Indramayu)
           </Text>
           <View style={styles.activePillBadge}>
             <View style={styles.liveGreenDot} />
@@ -345,76 +416,7 @@ export function SafeHavenDirectoryScreen() {
           </View>
         </View>
 
-        {filteredShelters.map((shelter) => (
-          <View key={shelter.id} style={styles.shelterCard}>
-            {/* Top Badges Row */}
-            <View style={styles.cardBadgesRow}>
-              <View
-                style={[
-                  styles.categoryBadge,
-                  { backgroundColor: shelter.category_badge.bg_color },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.categoryBadgeText,
-                    { color: shelter.category_badge.text_color },
-                  ]}
-                >
-                  {shelter.category_badge.label}
-                </Text>
-              </View>
-
-              <View
-                style={[
-                  styles.statusBadge,
-                  { backgroundColor: shelter.status_badge.bg_color },
-                ]}
-              >
-                <View style={styles.statusDotGreen} />
-                <Text
-                  style={[
-                    styles.statusBadgeText,
-                    { color: shelter.status_badge.text_color },
-                  ]}
-                >
-                  {shelter.status_badge.label}
-                </Text>
-              </View>
-            </View>
-
-            {/* Name & Address */}
-            <Text style={styles.shelterTitle}>{shelter.name}</Text>
-            <Text style={styles.shelterAddress}>{shelter.address}</Text>
-
-            {/* Distance, ETA & Divider */}
-            <View style={styles.metaRow}>
-              <View style={styles.metaChip}>
-                <PinSmallIcon color="#0284C7" size={13} />
-                <Text style={styles.metaChipText}>{shelter.distance}</Text>
-              </View>
-
-              <View style={styles.metaChip}>
-                <ClockSmallIcon color="#059669" size={13} />
-                <Text style={[styles.metaChipText, { color: '#059669' }]}>
-                  {shelter.eta} berkendara
-                </Text>
-              </View>
-            </View>
-
-            {/* Action Button */}
-            <TouchableOpacity
-              style={styles.rerouteActionButton}
-              onPress={() => handleReroute(shelter)}
-              activeOpacity={0.88}
-            >
-              <NavigationRerouteIcon color="#FFFFFF" size={16} />
-              <Text style={styles.rerouteActionText}>
-                {shelter.action.label}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ))}
+        {renderShelterList()}
       </ScrollView>
     </SafeAreaView>
   );

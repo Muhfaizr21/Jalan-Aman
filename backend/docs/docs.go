@@ -323,6 +323,143 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/users/account": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Menghapus akun pengguna secara permanen dari basis data",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Hapus Akun Pengguna",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/profile": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Memperbarui data diri, kontak, ID Medis, dan kontak pengawal darurat",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Perbarui Profil Pengguna",
+                "parameters": [
+                    {
+                        "description": "Payload Profil",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.UpdateProfileRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.User"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/reputation": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Mengambil skor reputasi, tier keamanan, dan log riwayat audit dari PostgreSQL",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Reputasi \u0026 Tingkat Kepercayaan Pengguna",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.UserReputationResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -401,12 +538,14 @@ const docTemplate = `{
             "enum": [
                 "Pending",
                 "Verified",
-                "Rejected"
+                "Rejected",
+                "Resolved"
             ],
             "x-enum-varnames": [
                 "StatusPending",
                 "StatusVerified",
-                "StatusRejected"
+                "StatusRejected",
+                "StatusResolved"
             ]
         },
         "model.LoginRequest": {
@@ -420,19 +559,104 @@ const docTemplate = `{
                 }
             }
         },
+        "model.ReputationLog": {
+            "type": "object",
+            "properties": {
+                "change_amount": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "current_score": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.UpdateProfileRequest": {
+            "type": "object",
+            "properties": {
+                "allergies": {
+                    "type": "string"
+                },
+                "avatar_url": {
+                    "type": "string"
+                },
+                "blood_type": {
+                    "type": "string"
+                },
+                "domicile": {
+                    "type": "string"
+                },
+                "emergency_hospital": {
+                    "type": "string"
+                },
+                "guardian_name": {
+                    "type": "string"
+                },
+                "guardian_phone": {
+                    "type": "string"
+                },
+                "medical_notes": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                }
+            }
+        },
         "model.User": {
             "type": "object",
             "properties": {
+                "allergies": {
+                    "type": "string"
+                },
+                "avatar_url": {
+                    "type": "string"
+                },
+                "blood_type": {
+                    "type": "string"
+                },
                 "created_at": {
+                    "type": "string"
+                },
+                "domicile": {
                     "type": "string"
                 },
                 "email": {
                     "type": "string"
                 },
+                "emergency_hospital": {
+                    "type": "string"
+                },
+                "guardian_name": {
+                    "type": "string"
+                },
+                "guardian_phone": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
+                "medical_notes": {
+                    "type": "string"
+                },
                 "name": {
+                    "type": "string"
+                },
+                "phone": {
                     "type": "string"
                 },
                 "role": {
@@ -447,6 +671,50 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "model.UserReputationResponse": {
+            "type": "object",
+            "properties": {
+                "benefits": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "history": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.ReputationLog"
+                    }
+                },
+                "sos_readiness_rate": {
+                    "type": "number"
+                },
+                "tier_color": {
+                    "type": "string"
+                },
+                "tier_label": {
+                    "type": "string"
+                },
+                "tier_status": {
+                    "type": "string"
+                },
+                "trust_score": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "verified_reports_count": {
+                    "type": "integer"
+                },
+                "violations_count": {
+                    "type": "integer"
                 }
             }
         },

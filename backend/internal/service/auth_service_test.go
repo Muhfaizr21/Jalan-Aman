@@ -20,7 +20,7 @@ func TestAuthService_Login(t *testing.T) {
 	defer db.Close()
 
 	userRepo := repository.NewPostgresUserRepository(db)
-	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret, cfg.JWTExpireHours)
+	authSvc := service.NewAuthService(userRepo, nil, cfg.JWTSecret, cfg.JWTExpireHours)
 
 	// Test 1: Password Benar
 	resp, err := authSvc.Login(context.Background(), &model.LoginRequest{
@@ -46,3 +46,40 @@ func TestAuthService_Login(t *testing.T) {
 		t.Errorf("Ekspektasi login gagal untuk password salah")
 	}
 }
+
+func TestAuthService_UpdateProfile(t *testing.T) {
+	cfg := config.Load()
+	db, err := database.Connect(cfg)
+	if err != nil {
+		t.Fatalf("Gagal koneksi database: %v", err)
+	}
+	defer db.Close()
+
+	userRepo := repository.NewPostgresUserRepository(db)
+	authSvc := service.NewAuthService(userRepo, nil, cfg.JWTSecret, cfg.JWTExpireHours)
+
+	user, err := userRepo.FindByEmail(context.Background(), "admin@gmail.com")
+	if err != nil {
+		t.Fatalf("Gagal menemukan user: %v", err)
+	}
+
+	updated, err := authSvc.UpdateProfile(context.Background(), user.ID, &model.UpdateProfileRequest{
+		Name:              "Superadmin Utama",
+		Phone:             "+62 812-9999-8888",
+		Domicile:          "Indramayu Kota",
+		BloodType:         "AB+",
+		Allergies:         "Tidak Ada",
+		MedicalNotes:      "Kondisi prima",
+		EmergencyHospital: "RSUD Indramayu",
+		GuardianName:      "Command Hub",
+		GuardianPhone:     "112",
+	})
+	if err != nil {
+		t.Fatalf("Ekspektasi update profil sukses, error: %v", err)
+	}
+
+	if updated.Name != "Superadmin Utama" || updated.Phone != "+62 812-9999-8888" || updated.BloodType != "AB+" {
+		t.Errorf("Data profil tidak sesuai hasil update: %+v", updated)
+	}
+}
+

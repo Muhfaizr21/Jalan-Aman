@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useShelters } from '@/hooks/useShelters';
 import {
   View,
   Text,
@@ -15,7 +16,7 @@ import Svg, { Path, Circle } from 'react-native-svg';
 export interface ShelterItem {
   id: string;
   name: string;
-  category: 'police' | 'store24' | 'pos_satpam';
+  category: 'police' | 'store24' | 'pos_satpam' | 'hospital';
   category_label: string;
   category_bg: string;
   category_color: string;
@@ -34,73 +35,6 @@ export interface SafeHavenDirectoryModalProps {
   onClose: () => void;
   onReroute?: (shelter: ShelterItem) => void;
 }
-
-const DEFAULT_SHELTERS: ShelterItem[] = [
-  {
-    id: 'sh_01',
-    name: 'Polsek Jatibarang',
-    category: 'police',
-    category_label: 'Pos Polisi',
-    category_bg: '#E0F2FE',
-    category_color: '#0284C7',
-    status_label: 'Siaga 24 Jam',
-    status_bg: '#D1FAE5',
-    status_color: '#059669',
-    distance: '320 m',
-    distance_meters: 320,
-    eta: '1 mnt',
-    address: 'Jl. Mayor Dasuki No. 12',
-    is_verified: true,
-  },
-  {
-    id: 'sh_02',
-    name: 'Indomaret 24 Jam Bulak',
-    category: 'store24',
-    category_label: 'Retail 24 Jam',
-    category_bg: '#FEF3C7',
-    category_color: '#D97706',
-    status_label: 'Buka 24 Jam',
-    status_bg: '#D1FAE5',
-    status_color: '#059669',
-    distance: '340 m',
-    distance_meters: 340,
-    eta: '2 mnt',
-    address: 'Jl. Raya Bulak No. 45',
-    is_verified: true,
-  },
-  {
-    id: 'sh_03',
-    name: 'Pos Satpam Perum Griya',
-    category: 'pos_satpam',
-    category_label: 'Pos Satpam',
-    category_bg: '#F1F5F9',
-    category_color: '#475569',
-    status_label: 'Penjagaan Aktif',
-    status_bg: '#D1FAE5',
-    status_color: '#059669',
-    distance: '345 m',
-    distance_meters: 345,
-    eta: '2 mnt',
-    address: 'Gerbang Utama Griya Jatibarang',
-    is_verified: true,
-  },
-  {
-    id: 'sh_04',
-    name: 'Pos Pengamanan Terpadu Simpang Tiga',
-    category: 'pos_satpam',
-    category_label: 'Pos Satpam',
-    category_bg: '#F1F5F9',
-    category_color: '#475569',
-    status_label: 'Siaga Penuh',
-    status_bg: '#D1FAE5',
-    status_color: '#059669',
-    distance: '350 m',
-    distance_meters: 350,
-    eta: '2 mnt',
-    address: 'Simpang Tiga Jl. Siliwangi',
-    is_verified: true,
-  },
-];
 
 /* ================= VECTOR ICONS ================= */
 function CloseIcon({ color = '#64748B', size = 20 }: { color?: string; size?: number }) {
@@ -195,17 +129,63 @@ export function SafeHavenDirectoryModal({
 }: SafeHavenDirectoryModalProps) {
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
+  const { rawShelters, isLoading } = useShelters();
+
   const filterChips = [
     { id: 'all', label: 'Semua Titik', icon: null },
     { id: 'police', label: 'Pos Polisi', icon: 'police' },
     { id: 'store24', label: 'Retail 24 Jam', icon: 'store24' },
     { id: 'pos_satpam', label: 'Pos Satpam', icon: 'pos_satpam' },
+    { id: 'hospital', label: 'Faskes / RSUD', icon: 'police' },
   ];
+
+  const shelterItems: ShelterItem[] = useMemo(() => {
+    if (!rawShelters || rawShelters.length === 0) return [];
+    return rawShelters.map((s) => {
+      let category_label = 'Safe Haven';
+      let category_bg = '#F1F5F9';
+      let category_color = '#475569';
+      if (s.category === 'police') {
+        category_label = 'Pos Polisi';
+        category_bg = '#E0F2FE';
+        category_color = '#0284C7';
+      } else if (s.category === 'store24') {
+        category_label = 'Retail 24 Jam';
+        category_bg = '#FEF3C7';
+        category_color = '#D97706';
+      } else if (s.category === 'pos_satpam') {
+        category_label = 'Pos Satpam';
+        category_bg = '#F1F5F9';
+        category_color = '#475569';
+      } else if (s.category === 'hospital') {
+        category_label = 'Faskes / RSUD';
+        category_bg = '#FEE2E2';
+        category_color = '#DC2626';
+      }
+
+      return {
+        id: s.id,
+        name: s.name,
+        category: (s.category as any) || 'pos_satpam',
+        category_label,
+        category_bg,
+        category_color,
+        status_label: s.is_24h ? 'Siaga 24 Jam' : 'Buka Sekarang',
+        status_bg: '#D1FAE5',
+        status_color: '#059669',
+        distance: s.distance || '400 m',
+        distance_meters: 400,
+        eta: s.eta || '3 mnt',
+        address: s.address,
+        is_verified: s.is_active,
+      };
+    });
+  }, [rawShelters]);
 
   const filteredShelters =
     activeCategory === 'all'
-      ? DEFAULT_SHELTERS
-      : DEFAULT_SHELTERS.filter((s) => s.category === activeCategory);
+      ? shelterItems
+      : shelterItems.filter((s) => s.category === activeCategory);
 
   const handleReroutePress = (shelter: ShelterItem) => {
     Alert.alert(

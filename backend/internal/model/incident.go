@@ -23,7 +23,23 @@ const (
 	StatusPending  IncidentStatus = "Pending"
 	StatusVerified IncidentStatus = "Verified"
 	StatusRejected IncidentStatus = "Rejected"
+	StatusResolved IncidentStatus = "Resolved"
 )
+
+// UpdateIncidentStatusRequest adalah payload untuk verifikasi insiden oleh Superadmin
+type UpdateIncidentStatusRequest struct {
+	Status IncidentStatus `json:"status"`
+}
+
+// Validate memeriksa apakah status transisi valid
+func (r *UpdateIncidentStatusRequest) Validate() error {
+	switch r.Status {
+	case StatusPending, StatusVerified, StatusRejected, StatusResolved:
+		return nil
+	default:
+		return errors.New("status tidak valid (pilihan: Pending, Verified, Rejected, Resolved)")
+	}
+}
 
 // Incident merepresentasikan entitas domain Insiden (M dalam MVC)
 type Incident struct {

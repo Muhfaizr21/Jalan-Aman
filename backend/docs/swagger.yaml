@@ -53,11 +53,13 @@ definitions:
     - Pending
     - Verified
     - Rejected
+    - Resolved
     type: string
     x-enum-varnames:
     - StatusPending
     - StatusVerified
     - StatusRejected
+    - StatusResolved
   model.LoginRequest:
     properties:
       email:
@@ -65,15 +67,71 @@ definitions:
       password:
         type: string
     type: object
+  model.ReputationLog:
+    properties:
+      change_amount:
+        type: integer
+      created_at:
+        type: string
+      current_score:
+        type: integer
+      id:
+        type: string
+      reason:
+        type: string
+      user_id:
+        type: string
+    type: object
+  model.UpdateProfileRequest:
+    properties:
+      allergies:
+        type: string
+      avatar_url:
+        type: string
+      blood_type:
+        type: string
+      domicile:
+        type: string
+      emergency_hospital:
+        type: string
+      guardian_name:
+        type: string
+      guardian_phone:
+        type: string
+      medical_notes:
+        type: string
+      name:
+        type: string
+      phone:
+        type: string
+    type: object
   model.User:
     properties:
+      allergies:
+        type: string
+      avatar_url:
+        type: string
+      blood_type:
+        type: string
       created_at:
+        type: string
+      domicile:
         type: string
       email:
         type: string
+      emergency_hospital:
+        type: string
+      guardian_name:
+        type: string
+      guardian_phone:
+        type: string
       id:
         type: string
+      medical_notes:
+        type: string
       name:
+        type: string
+      phone:
         type: string
       role:
         $ref: '#/definitions/model.UserRole'
@@ -84,6 +142,35 @@ definitions:
         type: integer
       updated_at:
         type: string
+    type: object
+  model.UserReputationResponse:
+    properties:
+      benefits:
+        items:
+          type: string
+        type: array
+      description:
+        type: string
+      history:
+        items:
+          $ref: '#/definitions/model.ReputationLog'
+        type: array
+      sos_readiness_rate:
+        type: number
+      tier_color:
+        type: string
+      tier_label:
+        type: string
+      tier_status:
+        type: string
+      trust_score:
+        type: integer
+      user_id:
+        type: string
+      verified_reports_count:
+        type: integer
+      violations_count:
+        type: integer
     type: object
   model.UserRole:
     enum:
@@ -331,4 +418,85 @@ paths:
       summary: Detail Insiden Berdasarkan ID
       tags:
       - Incidents
+  /users/account:
+    delete:
+      description: Menghapus akun pengguna secara permanen dari basis data
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Hapus Akun Pengguna
+      tags:
+      - Authentication
+  /users/profile:
+    put:
+      consumes:
+      - application/json
+      description: Memperbarui data diri, kontak, ID Medis, dan kontak pengawal darurat
+      parameters:
+      - description: Payload Profil
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.UpdateProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.User'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Perbarui Profil Pengguna
+      tags:
+      - Authentication
+  /users/reputation:
+    get:
+      description: Mengambil skor reputasi, tier keamanan, dan log riwayat audit dari
+        PostgreSQL
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.UserReputationResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Reputasi & Tingkat Kepercayaan Pengguna
+      tags:
+      - Authentication
 swagger: "2.0"

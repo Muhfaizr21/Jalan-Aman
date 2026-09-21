@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/Muhfaizr21/Jalan-Aman/backend/internal/middleware"
 	"github.com/Muhfaizr21/Jalan-Aman/backend/internal/model"
 	"github.com/Muhfaizr21/Jalan-Aman/backend/internal/service"
 	"github.com/Muhfaizr21/Jalan-Aman/backend/internal/view"
@@ -36,6 +37,12 @@ func (c *IncidentController) Create(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, "Format JSON request tidak valid", err.Error())
 		return
+	}
+
+	if claims, ok := middleware.GetClaimsFromContext(r.Context()); ok && claims != nil {
+		if req.ReporterID == "" {
+			req.ReporterID = claims.UserID
+		}
 	}
 
 	created, err := c.service.ReportIncident(r.Context(), &req)
@@ -97,3 +104,33 @@ func (c *IncidentController) GetByID(w http.ResponseWriter, r *http.Request) {
 	viewData := view.FormatIncident(item)
 	response.Success(w, http.StatusOK, "Data insiden ditemukan", viewData)
 }
+
+// UpdateStatus menangani PATCH /api/v1/admin/incidents/{id}/status (Khusus Superadmin)
+func (c *IncidentController) UpdateStatus(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		response.Error(w, http.StatusBadRequest, "Parameter ID insiden wajib diisi")
+		return
+	}
+
+	var req model.UpdateIncidentStatusRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, "Format JSON tidak valid", err.Error())
+		return
+	}
+
+	if err := req.Validate(); err != nil {
+		response.Error(w, http.StatusBadRequest, "Validasi gagal", err.Error())
+		return
+	}
+
+	updated, err := c.service.UpdateStatus(r.Context(), id, req.Status)
+	if err != nil {
+		response.Error(w, http.StatusNotFound, "Gagal memperbarui status insiden", err.Error())
+		return
+	}
+
+	viewData := view.FormatIncident(updated)
+	response.Success(w, http.StatusOK, "Status insiden berhasil diperbarui", viewData)
+}
+

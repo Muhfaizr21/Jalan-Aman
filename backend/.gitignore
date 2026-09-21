@@ -2,6 +2,7 @@
 /bin/
 /dist/
 main
+api
 *.exe
 *.exe~
 *.dll

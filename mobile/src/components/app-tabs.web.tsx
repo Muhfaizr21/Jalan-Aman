@@ -5,42 +5,21 @@ import { BottomNavigationBar } from './BottomNavigationBar';
 export default function AppTabs() {
   return (
     <Tabs
-      tabBar={(props) => {
-        const currentRouteName = props.state.routes[props.state.index]?.name;
-        if (currentRouteName === 'index') {
-          return null;
-        }
-        let activeTab: 'navigasi' | 'lapor' | 'info' = 'navigasi';
-        if (currentRouteName === 'explore') {
-          activeTab = 'info';
-        } else if (currentRouteName === 'report') {
-          activeTab = 'lapor';
-        }
-
-        return (
-          <BottomNavigationBar
-            activeTab={activeTab}
-            onTabPress={(tabId) => {
-              if (tabId === 'lapor') {
-                router.push('/report');
-              } else if (tabId === 'info') {
-                router.push('/explore');
-              } else {
-                router.push('/');
-              }
-            }}
-            onLaporPress={() => router.push('/report')}
-          />
-        );
-      }}
+      tabBar={() => null}
       screenOptions={{ headerShown: false }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Navigasi' }} />
-      <Tabs.Screen name="explore" options={{ title: 'Info Aman' }} />
-      <Tabs.Screen name="report" options={{ title: 'Laporkan Insiden', href: null }} />
-      <Tabs.Screen name="sos" options={{ title: 'Protokol Darurat SOS', href: null }} />
-      <Tabs.Screen name="shelters" options={{ title: 'Titik Perlindungan', href: null }} />
-      <Tabs.Screen name="navigation" options={{ title: 'Navigasi Aktif', href: null }} />
+      <Tabs.Screen name="index" options={{ title: 'Rute Aman & Navigasi' }} />
+      <Tabs.Screen name="radar" options={{ title: 'Radar JalanAman' }} />
+      <Tabs.Screen name="explore" options={{ title: 'Feed & Wawasan' }} />
+      <Tabs.Screen name="report" options={{ title: 'Laporkan Insiden' }} />
+      <Tabs.Screen name="sos" options={{ title: 'Protokol Darurat SOS' }} />
+      <Tabs.Screen name="shelters" options={{ title: 'Titik Perlindungan' }} />
+      <Tabs.Screen name="navigation" options={{ title: 'Rute Aman' }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profil Saya' }} />
+      <Tabs.Screen name="trip-protection" options={{ title: 'Proteksi Perjalanan' }} />
+      <Tabs.Screen name="community-report" options={{ title: 'Pelaporan Komunitas' }} />
+      <Tabs.Screen name="settings" options={{ title: 'Pengaturan Sistem' }} />
+      <Tabs.Screen name="login" options={{ title: 'Masuk / Daftar' }} />
     </Tabs>
   );
 }
