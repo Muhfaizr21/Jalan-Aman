@@ -13,7 +13,12 @@ import { CirclegeoGisMap, DEFAULT_GIS_CENTER } from '@/components/gis';
 import { StyleProp, ViewStyle } from 'react-native';
 
 interface NavigationMapCanvasProps {
+  center?: [number, number];
   selectedRoute: RouteOptionType;
+  routeCoordinates?: [number, number][];
+  altRouteCoordinates?: [number, number][];
+  userLocation?: [number, number] | null;
+  droppedPinCoords?: [number, number] | null;
   isTilt3D: boolean;
   isCctvLayerActive: boolean;
   onRecenter: () => void;
@@ -21,6 +26,8 @@ interface NavigationMapCanvasProps {
   onToggleCctvLayer: () => void;
   onOpenLayersModal?: () => void;
   onPinPress?: (pinName: string, detail: string) => void;
+  onMapPress?: (coords: [number, number]) => void;
+  onSelectAltRoute?: () => void;
   showSafeRoute?: boolean;
   pitch?: number;
   bearing?: number;
@@ -73,7 +80,12 @@ function VideocamIcon({ size = 20, color = DashboardTheme.colors.primary }: { si
  * corridor route visualization, recenter action, and CCTV layer toggle.
  */
 export const NavigationMapCanvas: React.FC<NavigationMapCanvasProps> = ({
+  center,
   selectedRoute,
+  routeCoordinates,
+  altRouteCoordinates,
+  userLocation = null,
+  droppedPinCoords = null,
   isTilt3D,
   isCctvLayerActive,
   onRecenter,
@@ -81,6 +93,8 @@ export const NavigationMapCanvas: React.FC<NavigationMapCanvasProps> = ({
   onToggleCctvLayer,
   onOpenLayersModal,
   onPinPress,
+  onMapPress,
+  onSelectAltRoute,
   showSafeRoute = true,
   pitch,
   bearing,
@@ -90,19 +104,28 @@ export const NavigationMapCanvas: React.FC<NavigationMapCanvasProps> = ({
 }) => {
   const resolvedPitch = pitch !== undefined ? pitch : (isTilt3D ? 52 : 0);
   const resolvedBearing = bearing !== undefined ? bearing : (isTilt3D ? -20 : 0);
+  
+  // Use explicit center prop, then userLocation, then route start, and only fallback to DEFAULT_GIS_CENTER
+  const resolvedCenter = center || userLocation || (routeCoordinates && routeCoordinates.length > 0 ? routeCoordinates[0] : DEFAULT_GIS_CENTER);
 
   return (
     <View style={[styles.outerContainer, style]}>
       {/* Real 3D Circlegeo ESRI Satellite GIS Map Engine */}
       <CirclegeoGisMap
         interactive={true}
-        center={DEFAULT_GIS_CENTER}
+        center={resolvedCenter}
         zoom={zoom}
         pitch={resolvedPitch}
         bearing={resolvedBearing}
         showSafeRoute={showSafeRoute}
         showCctvLayer={isCctvLayerActive}
+        routeCoordinates={routeCoordinates}
+        altRouteCoordinates={altRouteCoordinates}
+        userLocation={userLocation}
+        droppedPinCoords={droppedPinCoords}
         onPinPress={onPinPress}
+        onMapPress={onMapPress}
+        onSelectAltRoute={onSelectAltRoute}
       />
 
       {/* ================= MAP UTILITY ACTION DOCK (RIGHT ALIGNED) ================= */}

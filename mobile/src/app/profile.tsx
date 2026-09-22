@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -28,6 +28,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { useAuth } from '@/hooks/useAuth';
 import { DashboardTabId } from '@/types/dashboard';
 import { TransportMode, GuardianContactItem } from '@/types/profile';
+import { tripService, TripStats } from '@/services/tripService';
 
 /**
  * Modul 2: Profil & Identitas Aman (User Profile, Medical ID & Guardians Circle)
@@ -42,8 +43,21 @@ export function ProfileScreen() {
   const [isGuardianModalVisible, setIsGuardianModalVisible] = useState(false);
   const [selectedGuardianContact, setSelectedGuardianContact] = useState<GuardianContactItem | null>(null);
   const [isContactActionVisible, setIsContactActionVisible] = useState(false);
+  const [tripStats, setTripStats] = useState<TripStats | null>(null);
   const { hasUnread } = useNotifications();
   const { user } = useAuth();
+
+  useEffect(() => {
+    let isMounted = true;
+    tripService.getHistory('this_month').then((res) => {
+      if (isMounted && res.stats) {
+        setTripStats(res.stats);
+      }
+    }).catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Notification action
   const handleNotificationPress = useCallback(() => {
@@ -148,7 +162,11 @@ export function ProfileScreen() {
             activeOpacity={0.75}
           >
             <Text style={styles.quickMenuTitle}>📜 Riwayat Perjalanan Aman</Text>
-            <Text style={styles.quickMenuSub}>18 perjalanan selesai • 95.4 skor aman</Text>
+            <Text style={styles.quickMenuSub}>
+              {tripStats
+                ? `${tripStats.total_completed} perjalanan selesai • ${tripStats.average_safety_score.toFixed(1)} skor aman`
+                : '18 perjalanan selesai • 95.4 skor aman'}
+            </Text>
           </TouchableOpacity>
           <View style={styles.menuDivider} />
           <TouchableOpacity

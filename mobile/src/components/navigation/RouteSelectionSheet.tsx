@@ -15,6 +15,11 @@ interface RouteSelectionSheetProps {
   onShareTrip: () => void;
   onStartNavigation: () => void;
   isNavigating?: boolean;
+  travelMode?: 'walk' | 'motor';
+  safeDurationMin?: number;
+  safeDistanceKm?: number;
+  fastDurationMin?: number;
+  fastDistanceKm?: number;
 }
 
 /* Security Shield Mini Icon */
@@ -143,7 +148,29 @@ export const RouteSelectionSheet: React.FC<RouteSelectionSheetProps> = ({
   onShareTrip,
   onStartNavigation,
   isNavigating = false,
+  travelMode = 'walk',
+  safeDurationMin,
+  safeDistanceKm,
+  fastDurationMin,
+  fastDistanceKm,
 }) => {
+  const actualSafeDuration = safeDurationMin ?? (travelMode === 'walk' ? 14 : 7);
+  const actualSafeDistance = safeDistanceKm ?? (travelMode === 'walk' ? 2.1 : 2.5);
+  const actualFastDuration = fastDurationMin ?? (travelMode === 'walk' ? 10 : 4);
+  const actualFastDistance = fastDistanceKm ?? (travelMode === 'walk' ? 1.8 : 2.0);
+
+  // Compute live ETA formatted HH:mm
+  const formatEta = (addMinutes: number) => {
+    const d = new Date(Date.now() + addMinutes * 60000);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
+  const safeEtaText = `Tiba ${formatEta(actualSafeDuration)} WIB`;
+  const fastEtaText = `Tiba ${formatEta(actualFastDuration)} WIB`;
+  const diffMinutes = Math.max(1, actualSafeDuration - actualFastDuration);
+
   return (
     <View style={styles.sheetContainer}>
       {/* Top Handle Drag Indicator */}
@@ -161,9 +188,9 @@ export const RouteSelectionSheet: React.FC<RouteSelectionSheetProps> = ({
         </View>
       </View>
 
-      {/* Route Comparison Cards */}
+      {/* Route Cards Container */}
       <View style={styles.cardsList}>
-        {/* OPTION 1: Rekomendasi Aman (Active / Safe) */}
+        {/* OPTION 1: Rute Rekomendasi Aman (Recommended Safe) */}
         <TouchableOpacity
           style={[
             styles.routeCard,
@@ -178,10 +205,10 @@ export const RouteSelectionSheet: React.FC<RouteSelectionSheetProps> = ({
           <View style={styles.cardHeader}>
             <View style={styles.cardBadgeGroup}>
               <View style={styles.recommendedBadge}>
-                <CheckVerifiedIcon size={13} />
-                <Text style={styles.recommendedBadgeText}>Rekomendasi Aman</Text>
+                <CheckVerifiedIcon size={12} />
+                <Text style={styles.recommendedBadgeText}>Rute Rekomendasi Aman</Text>
               </View>
-              <Text style={styles.viaText}>Via Jl. Sabang</Text>
+              <Text style={styles.viaText}>Via Koridor PJU & Safe Haven</Text>
             </View>
 
             {/* Circular Safety Score Gauge (96) */}
@@ -213,12 +240,12 @@ export const RouteSelectionSheet: React.FC<RouteSelectionSheetProps> = ({
 
           {/* Duration & Distance Metrics */}
           <View style={styles.metricsRow}>
-            <Text style={styles.durationBig}>14</Text>
+            <Text style={styles.durationBig}>{actualSafeDuration}</Text>
             <Text style={styles.durationUnit}>mnt</Text>
             <Text style={styles.dotSeparator}>•</Text>
-            <Text style={styles.distanceText}>2.4 km</Text>
+            <Text style={styles.distanceText}>{actualSafeDistance.toFixed(1)} km</Text>
             <Text style={styles.dotSeparator}>•</Text>
-            <Text style={styles.etaSafeText}>Tiba 21:44 WIB</Text>
+            <Text style={styles.etaSafeText}>{safeEtaText}</Text>
           </View>
 
           {/* Protection Perks */}
@@ -286,12 +313,14 @@ export const RouteSelectionSheet: React.FC<RouteSelectionSheetProps> = ({
 
           {/* Duration & Distance Metrics */}
           <View style={styles.metricsRow}>
-            <Text style={styles.durationBig}>11</Text>
+            <Text style={styles.durationBig}>{actualFastDuration}</Text>
             <Text style={styles.durationUnit}>mnt</Text>
             <Text style={styles.dotSeparator}>•</Text>
-            <Text style={styles.distanceText}>1.9 km</Text>
+            <Text style={styles.distanceText}>{actualFastDistance.toFixed(1)} km</Text>
+            <Text style={styles.dotSeparator}>•</Text>
+            <Text style={styles.etaSafeText}>{fastEtaText}</Text>
             <View style={styles.speedDiffBadge}>
-              <Text style={styles.speedDiffText}>-3 mnt lebih cepat</Text>
+              <Text style={styles.speedDiffText}>-{diffMinutes} mnt lebih cepat</Text>
             </View>
           </View>
 
@@ -409,20 +438,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   routeCardActiveSafe: {
-    backgroundColor: '#F0F4FF',
-    borderColor: 'rgba(132, 204, 22, 0.4)',
-    shadowColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#84CC16',
+    shadowColor: '#84CC16',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 2,
   },
   routeCardActiveFast: {
-    backgroundColor: '#FFF7ED',
-    borderColor: 'rgba(253, 118, 26, 0.4)',
-    shadowColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FD761A',
+    shadowColor: '#FD761A',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 2,
   },

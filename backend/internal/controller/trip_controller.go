@@ -116,11 +116,16 @@ func (c *TripController) GetHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	history, err := c.service.GetHistory(r.Context(), claims.UserID)
+	period := r.URL.Query().Get("period")
+	if period == "" {
+		period = "this_month"
+	}
+
+	historyWithStats, err := c.service.GetHistoryWithStats(r.Context(), claims.UserID, period)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "Gagal mengambil riwayat perjalanan", err.Error())
 		return
 	}
 
-	response.Success(w, http.StatusOK, "Riwayat perjalanan berhasil diambil", history)
+	response.Success(w, http.StatusOK, "Riwayat perjalanan berhasil diambil", historyWithStats)
 }

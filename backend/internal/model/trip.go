@@ -16,19 +16,43 @@ const (
 
 // Trip merepresentasikan rekam jejak sesi perjalanan yang terlindungi di PostgreSQL
 type Trip struct {
-	ID              string     `json:"id"`
-	UserID          string     `json:"user_id"`
-	OriginName      string     `json:"origin_name"`
-	DestinationName string     `json:"destination_name"`
-	OriginLat       float64    `json:"origin_lat"`
-	OriginLng       float64    `json:"origin_lng"`
-	DestLat         float64    `json:"dest_lat"`
-	DestLng         float64    `json:"dest_lng"`
-	Status          TripStatus `json:"status"` // 'active', 'completed', 'cancelled'
-	IsEncrypted     bool       `json:"is_encrypted"`
-	StartTime       time.Time  `json:"start_time"`
-	ArrivedAt       *time.Time `json:"arrived_at,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
+	ID                    string     `json:"id"`
+	UserID                string     `json:"user_id"`
+	OriginName            string     `json:"origin_name"`
+	DestinationName       string     `json:"destination_name"`
+	OriginLat             float64    `json:"origin_lat"`
+	OriginLng             float64    `json:"origin_lng"`
+	DestLat               float64    `json:"dest_lat"`
+	DestLng               float64    `json:"dest_lng"`
+	Status                TripStatus `json:"status"` // 'active', 'completed', 'cancelled'
+	IsEncrypted           bool       `json:"is_encrypted"`
+	Mode                  string     `json:"mode"` // 'walk', 'motor'
+	DistanceKm            float64    `json:"distance_km"`
+	DurationMinutes       int        `json:"duration_minutes"`
+	SafetyScore           int        `json:"safety_score"`
+	ProtectionHighlights  string     `json:"protection_highlights"`
+	AvoidedHazardsCount   int        `json:"avoided_hazards_count"`
+	AvoidedDarkAreasCount int        `json:"avoided_dark_areas_count"`
+	StartTime             time.Time  `json:"start_time"`
+	ArrivedAt             *time.Time `json:"arrived_at,omitempty"`
+	CreatedAt             time.Time  `json:"created_at"`
+}
+
+// TripStats adalah rangkuman statistik perjalanan terlindungi per periode
+type TripStats struct {
+	TotalCompleted        int     `json:"total_completed"`
+	TotalDistanceKm       float64 `json:"total_distance_km"`
+	AverageSafetyScore    float64 `json:"average_safety_score"`
+	AvoidedHazardsCount   int     `json:"avoided_hazards_count"`
+	AvoidedDarkAreasCount int     `json:"avoided_dark_areas_count"`
+}
+
+// TripHistoryResponse adalah DTO respons untuk riwayat dan statistik perjalanan
+type TripHistoryResponse struct {
+	Period      string     `json:"period"`
+	PeriodLabel string     `json:"period_label"`
+	Stats       TripStats  `json:"stats"`
+	Trips       []*Trip    `json:"trips"`
 }
 
 // TripTelemetry merepresentasikan titik koordinat live GPS perjalanan

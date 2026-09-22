@@ -20,12 +20,13 @@ export interface SearchPlaceItem {
   safetyBadge?: string;
   safetyType?: 'pju' | 'cctv' | 'haven';
   distance?: string;
+  coordinates?: [number, number];
 }
 
 interface SearchSuggestionModalProps {
   visible: boolean;
   onDismiss: () => void;
-  onSelectPlace: (placeName: string) => void;
+  onSelectPlace: (placeName: string, coords?: [number, number]) => void;
   initialQuery?: string;
 }
 
@@ -113,27 +114,27 @@ function HospitalCrossIcon({ size = 18, color = '#EF4444' }: { size?: number; co
 }
 
 const SAVED_PLACES: SearchPlaceItem[] = [
-  { id: 'save-home', name: 'Rumah (Griya Jatibarang)', address: 'Perum Griya Asri Blok B No. 14, Jatibarang', category: 'home' },
-  { id: 'save-work', name: 'Stasiun Jatibarang', address: 'Jl. Mayor Dasuki, Jatibarang • KAI Commuter Hub', category: 'transit' },
-  { id: 'save-campus', name: 'Polindra (Politeknik Negeri Indramayu)', address: 'Jl. Lohbener Lama No. 8, Indramayu', category: 'campus' },
-  { id: 'save-kos', name: 'Kos Mahasiswi Indramayu', address: 'Jl. Kembar No. 12, Lemahabang, Indramayu', category: 'kos' },
+  { id: 'save-home', name: 'Rumah (Griya Jatibarang)', address: 'Perum Griya Asri Blok B No. 14, Jatibarang', category: 'home', coordinates: [108.3015, -6.4690] },
+  { id: 'save-work', name: 'Stasiun KAI Jatibarang', address: 'Jl. Mayor Dasuki, Jatibarang • KAI Commuter Hub', category: 'transit', coordinates: [108.3073, -6.4745] },
+  { id: 'save-campus', name: 'Polindra (Politeknik Negeri Indramayu)', address: 'Jl. Lohbener Lama No. 8, Indramayu', category: 'campus', coordinates: [108.2830, -6.4150] },
+  { id: 'save-kos', name: 'Kos Mahasiswi Indramayu', address: 'Jl. Kembar No. 12, Lemahabang, Indramayu', category: 'kos', coordinates: [108.3180, -6.3320] },
 ];
 
 const INITIAL_RECENT_SEARCHES: SearchPlaceItem[] = [
-  { id: 'rec-1', name: 'Stasiun Jatibarang', address: 'Jl. Mayor Dasuki • Transit Aman Terpantau', distance: '450 m' },
-  { id: 'rec-2', name: 'Simpang Lima Indramayu', address: 'Bundaran Mangga • Jalur Terang PJU', distance: '14.2 km' },
-  { id: 'rec-3', name: 'Alun-Alun Indramayu', address: 'Pusat Kota • Ramai & Pos Satpol PP', distance: '15.8 km' },
+  { id: 'rec-1', name: 'Stasiun KAI Jatibarang', address: 'Jl. Mayor Dasuki • Transit Aman Terpantau', distance: '450 m', coordinates: [108.3073, -6.4745] },
+  { id: 'rec-2', name: 'Simpang Lima Indramayu', address: 'Bundaran Mangga • Jalur Terang PJU', distance: '14.2 km', coordinates: [108.3280, -6.3350] },
+  { id: 'rec-3', name: 'Alun-Alun Indramayu', address: 'Pusat Kota • Ramai & Pos Satpol PP', distance: '15.8 km', coordinates: [108.3220, -6.3260] },
 ];
 
 const ALL_SEARCH_DATABASE: SearchPlaceItem[] = [
-  { id: 'db-1', name: 'Stasiun KAI Jatibarang', address: 'Jl. Mayor Dasuki No. 1, Jatibarang, Indramayu', safetyBadge: 'PJU 100% & 6 CCTV', safetyType: 'cctv', distance: '450 m' },
-  { id: 'db-2', name: 'Polsek Jatibarang', address: 'Jl. Mayor Dasuki No. 12, Jatibarang', safetyBadge: 'Safe Haven Utama 24 Jam', safetyType: 'haven', distance: '650 m' },
-  { id: 'db-3', name: 'Alun-Alun Indramayu', address: 'Jl. Mayjen Sutoyo, Margadadi, Indramayu', safetyBadge: 'Penerangan Tinggi & Ramai', safetyType: 'pju', distance: '15.8 km' },
-  { id: 'db-4', name: 'RSUD Indramayu', address: 'Jl. Murah Nara No. 7, Sindang, Indramayu', safetyBadge: 'Siaga Darurat 24 Jam', safetyType: 'haven', distance: '16.5 km' },
-  { id: 'db-5', name: 'Simpang Lima Indramayu', address: 'Bundaran Kijang / Mangga, Terusan', safetyBadge: 'Koridor Utama PJU 98%', safetyType: 'pju', distance: '14.2 km' },
-  { id: 'db-6', name: 'Indomaret 24 Jam Bulak', address: 'Jl. Raya Bulak No. 45, Jatibarang', safetyBadge: 'Shelter Komunitas 24 Jam', safetyType: 'haven', distance: '1.1 km' },
-  { id: 'db-7', name: 'Polres Indramayu', address: 'Jl. Gatot Subroto No. 45, Indramayu', safetyBadge: 'Pusat Komando Siaga 24 Jam', safetyType: 'haven', distance: '16.0 km' },
-  { id: 'db-8', name: 'Pasar Daerah Jatibarang', address: 'Jl. Siliwangi, Jatibarang', safetyBadge: 'Koridor Patroli Aktif', safetyType: 'pju', distance: '800 m' },
+  { id: 'db-1', name: 'Stasiun KAI Jatibarang', address: 'Jl. Mayor Dasuki No. 1, Jatibarang, Indramayu', safetyBadge: 'PJU 100% & 6 CCTV', safetyType: 'cctv', distance: '450 m', coordinates: [108.3073, -6.4745] },
+  { id: 'db-2', name: 'Polsek Jatibarang', address: 'Jl. Mayor Dasuki No. 12, Jatibarang', safetyBadge: 'Safe Haven Utama 24 Jam', safetyType: 'haven', distance: '650 m', coordinates: [108.3120, -6.4712] },
+  { id: 'db-3', name: 'Alun-Alun Indramayu', address: 'Jl. Mayjen Sutoyo, Margadadi, Indramayu', safetyBadge: 'Penerangan Tinggi & Ramai', safetyType: 'pju', distance: '15.8 km', coordinates: [108.3220, -6.3260] },
+  { id: 'db-4', name: 'RSUD Indramayu', address: 'Jl. Murah Nara No. 7, Sindang, Indramayu', safetyBadge: 'Siaga Darurat 24 Jam', safetyType: 'haven', distance: '16.5 km', coordinates: [108.3225, -6.3315] },
+  { id: 'db-5', name: 'Simpang Lima Indramayu', address: 'Bundaran Kijang / Mangga, Terusan', safetyBadge: 'Koridor Utama PJU 98%', safetyType: 'pju', distance: '14.2 km', coordinates: [108.3280, -6.3350] },
+  { id: 'db-6', name: 'Indomaret 24 Jam Bulak', address: 'Jl. Raya Bulak No. 45, Jatibarang', safetyBadge: 'Shelter Komunitas 24 Jam', safetyType: 'haven', distance: '1.1 km', coordinates: [108.3148, -6.4688] },
+  { id: 'db-7', name: 'Polres Indramayu', address: 'Jl. Gatot Subroto No. 45, Indramayu', safetyBadge: 'Pusat Komando Siaga 24 Jam', safetyType: 'haven', distance: '16.0 km', coordinates: [108.3200, -6.3290] },
+  { id: 'db-8', name: 'Pasar Daerah Jatibarang', address: 'Jl. Siliwangi, Jatibarang', safetyBadge: 'Koridor Patroli Aktif', safetyType: 'pju', distance: '800 m', coordinates: [108.3060, -6.4720] },
 ];
 
 export const SearchSuggestionModal: React.FC<SearchSuggestionModalProps> = ({
@@ -156,15 +157,15 @@ export const SearchSuggestionModal: React.FC<SearchSuggestionModalProps> = ({
     );
   }, [query]);
 
-  const handleSelect = (placeName: string) => {
+  const handleSelect = (placeName: string, coords?: [number, number]) => {
     // Add to recent if not present
     if (!recentList.some((r) => r.name === placeName)) {
       setRecentList((prev) => [
-        { id: `rec-${Date.now()}`, name: placeName, address: 'Lokasi Terpilih', distance: 'Rute Langsung' },
+        { id: `rec-${Date.now()}`, name: placeName, address: 'Lokasi Terpilih', distance: 'Rute Langsung', coordinates: coords },
         ...prev.slice(0, 4),
       ]);
     }
-    onSelectPlace(placeName);
+    onSelectPlace(placeName, coords);
     onDismiss();
   };
 
@@ -253,7 +254,7 @@ export const SearchSuggestionModal: React.FC<SearchSuggestionModalProps> = ({
                   <TouchableOpacity
                     key={item.id}
                     style={styles.searchResultRow}
-                    onPress={() => handleSelect(item.name)}
+                    onPress={() => handleSelect(item.name, item.coordinates)}
                     activeOpacity={0.7}
                   >
                     <View style={styles.resultIconCircle}>
@@ -292,7 +293,7 @@ export const SearchSuggestionModal: React.FC<SearchSuggestionModalProps> = ({
                     <TouchableOpacity
                       key={place.id}
                       style={styles.savedCard}
-                      onPress={() => handleSelect(place.name)}
+                      onPress={() => handleSelect(place.name, place.coordinates)}
                       activeOpacity={0.75}
                     >
                       <View style={styles.savedIconCircle}>
@@ -318,16 +319,16 @@ export const SearchSuggestionModal: React.FC<SearchSuggestionModalProps> = ({
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.poiCategoryRow}>
                   <TouchableOpacity
                     style={styles.poiCategoryChip}
-                    onPress={() => handleSelect('Stasiun MRT Bundaran HI')}
+                    onPress={() => handleSelect('Stasiun KAI Jatibarang', [108.3073, -6.4745])}
                     activeOpacity={0.75}
                   >
                     <TransitTrainIcon size={16} />
-                    <Text style={styles.poiCategoryLabel}>Stasiun MRT / KRL</Text>
+                    <Text style={styles.poiCategoryLabel}>Stasiun KAI</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
                     style={styles.poiCategoryChip}
-                    onPress={() => handleSelect('Pos Polisi Sabang')}
+                    onPress={() => handleSelect('Polsek Jatibarang', [108.3120, -6.4712])}
                     activeOpacity={0.75}
                   >
                     <PoliceShieldIcon size={16} />
@@ -336,11 +337,11 @@ export const SearchSuggestionModal: React.FC<SearchSuggestionModalProps> = ({
 
                   <TouchableOpacity
                     style={styles.poiCategoryChip}
-                    onPress={() => handleSelect('Klinik Pratama Salemba')}
+                    onPress={() => handleSelect('RSUD Indramayu', [108.3225, -6.3315])}
                     activeOpacity={0.75}
                   >
                     <HospitalCrossIcon size={16} />
-                    <Text style={styles.poiCategoryLabel}>Apotek / Klinik 24J</Text>
+                    <Text style={styles.poiCategoryLabel}>RSUD / Klinik 24J</Text>
                   </TouchableOpacity>
                 </ScrollView>
               </View>
@@ -360,7 +361,7 @@ export const SearchSuggestionModal: React.FC<SearchSuggestionModalProps> = ({
                       <View key={item.id} style={styles.recentItemRow}>
                         <TouchableOpacity
                           style={styles.recentClickArea}
-                          onPress={() => handleSelect(item.name)}
+                          onPress={() => handleSelect(item.name, item.coordinates)}
                           activeOpacity={0.7}
                         >
                           <HistoryClockIcon size={18} />

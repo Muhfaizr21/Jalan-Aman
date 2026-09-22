@@ -18,6 +18,7 @@ type TripService interface {
 	CompleteTrip(ctx context.Context, userID string, tripID string) (*model.Trip, error)
 	GetActiveTrip(ctx context.Context, userID string) (*model.Trip, error)
 	GetHistory(ctx context.Context, userID string) ([]*model.Trip, error)
+	GetHistoryWithStats(ctx context.Context, userID string, period string) (*model.TripHistoryResponse, error)
 }
 
 type tripService struct {
@@ -142,4 +143,8 @@ func (s *tripService) GetActiveTrip(ctx context.Context, userID string) (*model.
 
 func (s *tripService) GetHistory(ctx context.Context, userID string) ([]*model.Trip, error) {
 	return s.tripRepo.GetHistory(ctx, userID)
+}
+
+func (s *tripService) GetHistoryWithStats(ctx context.Context, userID string, period string) (*model.TripHistoryResponse, error) {
+	return s.tripRepo.GetHistoryWithStats(ctx, userID, period)
 }

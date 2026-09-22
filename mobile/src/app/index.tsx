@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
+import * as Location from 'expo-location';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { DashboardTheme } from '@/constants/dashboardTheme';
 import {
@@ -32,7 +33,40 @@ import { RouteFeedbackSheet } from '@/components/community-report';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useAuth } from '@/hooks/useAuth';
 import { DashboardTabId, QuickDestinationChip } from '@/types/dashboard';
-import { RouteOptionType } from '@/types/navigation';
+import { RouteOptionType, TurnInstructionData } from '@/types/navigation';
+import {
+  fetchDualRoadRoutes,
+  geocodeDestination,
+  RouteData,
+} from '@/services/routingService';
+
+/**
+ * Approximate spherical distance between two coordinates in kilometers
+ */
+function computeDistanceKm(c1: [number, number], c2: [number, number]): number {
+  const dLng = (c2[0] - c1[0]) * Math.cos(((c1[1] + c2[1]) / 2) * (Math.PI / 180));
+  const dLat = c2[1] - c1[1];
+  return parseFloat((Math.sqrt(dLng * dLng + dLat * dLat) * 111.32).toFixed(1));
+}
+
+/**
+ * Pre-calibrated geographical coordinates for key Indramayu & Pantura landmarks
+ */
+function getKnownCoordsForPlace(name: string): [number, number] | null {
+  const t = name.toLowerCase();
+  if (t.includes('stasiun')) return [108.3073, -6.4745];
+  if (t.includes('polsek')) return [108.3120, -6.4712];
+  if (t.includes('bulak') || t.includes('indomaret')) return [108.3148, -6.4688];
+  if (t.includes('pasar')) return [108.3060, -6.4720];
+  if (t.includes('simpang lima')) return [108.3280, -6.3350];
+  if (t.includes('alun-alun')) return [108.3220, -6.3260];
+  if (t.includes('rsud')) return [108.3225, -6.3315];
+  if (t.includes('polres')) return [108.3200, -6.3290];
+  if (t.includes('polindra') || t.includes('politeknik')) return [108.2830, -6.4150];
+  if (t.includes('rumah') || t.includes('griya')) return [108.3015, -6.4690];
+  if (t.includes('kos')) return [108.3180, -6.3320];
+  return null;
+}
 
 /**
  * Google Maps-Style Navigation Flow States:
@@ -102,27 +136,112 @@ function MotorcycleIcon({ size = 16, color = DashboardTheme.colors.textSecondary
   );
 }
 
+function DirectionsDiamondIcon({ size = 22, color = '#FFFFFF' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M21.71 11.29l-9-9a1 1 0 00-1.42 0l-9 9a1 1 0 000 1.42l9 9a1 1 0 001.42 0l9-9a1 1 0 000-1.42z"
+        fill={color}
+      />
+      <Path
+        d="M13.5 14.5V11H9.5"
+        stroke="#0B0F19"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M12 9l2.5 2-2.5 2"
+        stroke="#0B0F19"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+function SwapIcon({ size = 16, color = DashboardTheme.colors.textSecondary }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M7 16V4M7 4L3 8M7 4l4 4M17 8v12M17 20l4-4M17 20l-4-4"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 export function NavigationHomeScreen() {
   const insets = useSafeAreaInsets();
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0;
   const safeTop = Math.max(insets.top, statusBarHeight);
   const safeBottom = Math.max(insets.bottom, 12);
 
-  // Google Maps Flow State Machine
+  // Google Maps Flow State Machine: 'idle_explore' -> 'route_preview' -> 'active_navigation'
   const [mapFlowState, setMapFlowState] = useState<MapFlowState>('idle_explore');
-  const [destinationName, setDestinationName] = useState('Stasiun Jatibarang');
+  const [originName, setOriginName] = useState('Lokasi Anda');
+  const [originCoords, setOriginCoords] = useState<[number, number] | null>(null);
+  const [destinationName, setDestinationName] = useState('Pertigaan Bulak (Koridor PJU)');
+  const [destinationCoords, setDestinationCoords] = useState<[number, number]>([108.3148, -6.4688]);
   const [searchQuery, setSearchQuery] = useState('');
   const [travelMode, setTravelMode] = useState<'walk' | 'motor'>('walk');
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
+  const [locationStatus, setLocationStatus] = useState<'locating' | 'ready' | 'fallback'>('locating');
+  const [selectedMapPin, setSelectedMapPin] = useState<[number, number] | null>(null);
 
-  // Route & Telemetry Options
+  // Dual Real Road Route Data from OSRM
+  const [safeRouteData, setSafeRouteData] = useState<RouteData | null>(null);
+  const [fastRouteData, setFastRouteData] = useState<RouteData | null>(null);
+  const [isLoadingRoute, setIsLoadingRoute] = useState(false);
+
+  // Route Selection & Navigation HUD
   const [selectedRoute, setSelectedRoute] = useState<RouteOptionType>('safe');
+  const [activeNavStepIndex, setActiveNavStepIndex] = useState<number>(0);
+  const [isSimulatingNav, setIsSimulatingNav] = useState<boolean>(false);
+
+  // Active & Alternative Route Computations
+  const activeRouteData = selectedRoute === 'safe' ? safeRouteData : fastRouteData;
+  const altRouteData = selectedRoute === 'safe' ? fastRouteData : safeRouteData;
+  const activeRouteCoords = activeRouteData?.coordinates || [];
+  const altRouteCoords = altRouteData?.coordinates || [];
+
+  // Recalculate authentic road routes using OSRM
+  const recalculateRoutes = useCallback(
+    async (
+      orig?: [number, number],
+      dest?: [number, number],
+      mode?: 'walk' | 'motor'
+    ) => {
+      const o = orig || originCoords || userLocation || [108.3073, -6.4745];
+      const d = dest || destinationCoords || [108.3148, -6.4688];
+      const m = mode || travelMode;
+
+      setIsLoadingRoute(true);
+      try {
+        const result = await fetchDualRoadRoutes(o, d, m);
+        setSafeRouteData(result.safeRoute);
+        setFastRouteData(result.fastRoute);
+      } catch (err) {
+        console.warn('Error fetching road routes:', err);
+      } finally {
+        setIsLoadingRoute(false);
+      }
+    },
+    [originCoords, destinationCoords, userLocation, travelMode]
+  );
+
   const [isVoiceActive, setIsVoiceActive] = useState(true);
   const [isHazardVisible, setIsHazardVisible] = useState(true);
   const [isTilt3D, setIsTilt3D] = useState(false);
   const [isCctvLayerActive, setIsCctvLayerActive] = useState(true);
   const [isSosModalVisible, setIsSosModalVisible] = useState(false);
 
-  // New Senior UI/UX Modals (Item 1 & Item 2)
+  // Modals & Sheets
   const [isSearchModalVisible, setIsSearchModalVisible] = useState(false);
   const [isLayersModalVisible, setIsLayersModalVisible] = useState(false);
   const [isArrivalModalVisible, setIsArrivalModalVisible] = useState(false);
@@ -138,28 +257,157 @@ export function NavigationHomeScreen() {
     showSafeHavens: true,
   });
 
-  // Handlers for State 1: Idle Explore (Search & Chips)
-  const handleSearchSubmit = useCallback(() => {
-    const target = searchQuery.trim() || 'Stasiun Jatibarang';
+  // Track Real User Location (Supports Web Geolocation & Mobile GPS)
+  useEffect(() => {
+    let locationSubscription: Location.LocationSubscription | null = null;
+    let webWatchId: number | null = null;
+
+    const initialDest: [number, number] = [108.3148, -6.4688];
+
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
+          setUserLocation(coords);
+          setOriginCoords(coords);
+          setMapCenter(coords);
+          setLocationStatus('ready');
+          recalculateRoutes(coords, initialDest, 'walk');
+        },
+        (err) => {
+          console.warn('Browser geolocation fallback:', err);
+          setLocationStatus('fallback');
+          const fallbackCoords: [number, number] = [108.3073, -6.4745];
+          setUserLocation(fallbackCoords);
+          setOriginCoords(fallbackCoords);
+          setMapCenter(fallbackCoords);
+          recalculateRoutes(fallbackCoords, initialDest, 'walk');
+        },
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 30000 }
+      );
+
+      webWatchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
+          setUserLocation((prev) => {
+            // Only update GPS if not actively simulating
+            if (isSimulatingNav) return prev;
+            return coords;
+          });
+          setLocationStatus('ready');
+        },
+        (err) => console.warn('Watch error:', err),
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 }
+      );
+    } else {
+      (async () => {
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status !== 'granted') {
+            setLocationStatus('fallback');
+            const fallbackCoords: [number, number] = [108.3073, -6.4745];
+            setUserLocation(fallbackCoords);
+            setOriginCoords(fallbackCoords);
+            recalculateRoutes(fallbackCoords, initialDest, 'walk');
+            return;
+          }
+
+          const location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          const coords: [number, number] = [location.coords.longitude, location.coords.latitude];
+          setUserLocation(coords);
+          setOriginCoords(coords);
+          setMapCenter(coords);
+          setLocationStatus('ready');
+          recalculateRoutes(coords, initialDest, 'walk');
+
+          locationSubscription = await Location.watchPositionAsync(
+            {
+              accuracy: Location.Accuracy.High,
+              timeInterval: 2500,
+              distanceInterval: 1,
+            },
+            (loc) => {
+              const newCoords: [number, number] = [loc.coords.longitude, loc.coords.latitude];
+              setUserLocation((prev) => {
+                if (isSimulatingNav) return prev;
+                return newCoords;
+              });
+              setLocationStatus('ready');
+            }
+          );
+        } catch (err) {
+          console.warn('Gagal mendapatkan lokasi GPS:', err);
+          setLocationStatus('fallback');
+          const fallbackCoords: [number, number] = [108.3073, -6.4745];
+          setUserLocation(fallbackCoords);
+          setOriginCoords(fallbackCoords);
+          recalculateRoutes(fallbackCoords, initialDest, 'walk');
+        }
+      })();
+    }
+
+    return () => {
+      if (webWatchId !== null && typeof navigator !== 'undefined') {
+        navigator.geolocation.clearWatch(webWatchId);
+      }
+      if (locationSubscription) {
+        locationSubscription.remove();
+      }
+    };
+  }, []);
+
+  // Handlers for State 1: Idle Explore (Search, Chips, Map Click)
+  const handleSearchSubmit = useCallback(async () => {
+    const target = searchQuery.trim() || 'Stasiun KAI Jatibarang';
     setDestinationName(target);
+    setSelectedMapPin(null);
+
+    let coords = getKnownCoordsForPlace(target);
+    if (!coords) {
+      coords = await geocodeDestination(target);
+    }
+    const finalCoords = coords || [
+      (userLocation ? userLocation[0] : 108.3073) + 0.0075,
+      (userLocation ? userLocation[1] : -6.4745) + 0.0055,
+    ];
+    setDestinationCoords(finalCoords);
+    recalculateRoutes(originCoords || userLocation || [108.3073, -6.4745], finalCoords, travelMode);
     setMapFlowState('route_preview');
-  }, [searchQuery]);
+  }, [searchQuery, originCoords, userLocation, travelMode, recalculateRoutes]);
 
   const handleChipPress = useCallback((chip: QuickDestinationChip) => {
     setDestinationName(chip.label);
     setSearchQuery(chip.label);
+    setSelectedMapPin(null);
+
+    const coords = getKnownCoordsForPlace(chip.label) || [
+      (userLocation ? userLocation[0] : 108.3073) + 0.0075,
+      (userLocation ? userLocation[1] : -6.4745) + 0.0055,
+    ];
+    setDestinationCoords(coords);
+    recalculateRoutes(originCoords || userLocation || [108.3073, -6.4745], coords, travelMode);
     setMapFlowState('route_preview');
-  }, []);
+  }, [originCoords, userLocation, travelMode, recalculateRoutes]);
 
   const handleOpenSearchModal = useCallback(() => {
     setIsSearchModalVisible(true);
   }, []);
 
-  const handleSelectPlace = useCallback((placeName: string) => {
+  const handleSelectPlace = useCallback((placeName: string, coords?: [number, number]) => {
     setDestinationName(placeName);
     setSearchQuery(placeName);
+    setSelectedMapPin(null);
+
+    const resolvedCoords = coords || getKnownCoordsForPlace(placeName) || [
+      (userLocation ? userLocation[0] : 108.3073) + 0.0075,
+      (userLocation ? userLocation[1] : -6.4745) + 0.0055,
+    ];
+    setDestinationCoords(resolvedCoords);
+    recalculateRoutes(originCoords || userLocation || [108.3073, -6.4745], resolvedCoords, travelMode);
     setMapFlowState('route_preview');
-  }, []);
+  }, [originCoords, userLocation, travelMode, recalculateRoutes]);
 
   const handleOpenLayersModal = useCallback(() => {
     setIsLayersModalVisible(true);
@@ -170,6 +418,70 @@ export function NavigationHomeScreen() {
     setIsCctvLayerActive(newConfig.showCctvCameras);
   }, []);
 
+  // Map Click Handler: Drops red pin on the map
+  const handleMapPress = useCallback((coords: [number, number]) => {
+    setSelectedMapPin(coords);
+    if (mapFlowState === 'idle_explore') {
+      // In explore mode: only drop pin & show card, do not draw route yet!
+      setMapCenter(coords);
+    } else if (mapFlowState === 'route_preview') {
+      // In route preview: tapping map updates the destination point
+      const pinLabel = `Titik (${coords[1].toFixed(3)}, ${coords[0].toFixed(3)})`;
+      setDestinationName(pinLabel);
+      setDestinationCoords(coords);
+      recalculateRoutes(originCoords || userLocation || [108.3073, -6.4745], coords, travelMode);
+    }
+  }, [mapFlowState, originCoords, userLocation, travelMode, recalculateRoutes]);
+
+  // Directions from Dropped Pin in Idle Explore
+  const handleRouteToDroppedPin = useCallback(() => {
+    if (!selectedMapPin) return;
+    const pinLabel = `Titik (${selectedMapPin[1].toFixed(3)}, ${selectedMapPin[0].toFixed(3)})`;
+    setDestinationName(pinLabel);
+    setDestinationCoords(selectedMapPin);
+    recalculateRoutes(originCoords || userLocation || [108.3073, -6.4745], selectedMapPin, travelMode);
+    setMapFlowState('route_preview');
+  }, [selectedMapPin, originCoords, userLocation, travelMode, recalculateRoutes]);
+
+  // Start Navigation Directly from Dropped Pin
+  const handleStartDirectToDroppedPin = useCallback(() => {
+    if (!selectedMapPin) return;
+    const pinLabel = `Titik (${selectedMapPin[1].toFixed(3)}, ${selectedMapPin[0].toFixed(3)})`;
+    setDestinationName(pinLabel);
+    setDestinationCoords(selectedMapPin);
+    recalculateRoutes(originCoords || userLocation || [108.3073, -6.4745], selectedMapPin, travelMode);
+    setMapFlowState('active_navigation');
+    setIsTilt3D(true);
+    setActiveNavStepIndex(0);
+    setIsSimulatingNav(false);
+  }, [selectedMapPin, originCoords, userLocation, travelMode, recalculateRoutes]);
+
+  // Swap Origin and Destination (⇅)
+  const handleSwapPoints = useCallback(() => {
+    const nextOrigName = destinationName;
+    const nextDestName = originName;
+    const nextOrigCoords = destinationCoords;
+    const nextDestCoords = originCoords || userLocation || [108.3073, -6.4745];
+
+    setOriginName(nextOrigName);
+    setDestinationName(nextDestName);
+    setOriginCoords(nextOrigCoords);
+    setDestinationCoords(nextDestCoords);
+
+    recalculateRoutes(nextOrigCoords, nextDestCoords, travelMode);
+  }, [originName, destinationName, originCoords, destinationCoords, userLocation, travelMode, recalculateRoutes]);
+
+  // Travel Mode Switcher ('walk' vs 'motor')
+  const handleSelectTravelMode = useCallback((mode: 'walk' | 'motor') => {
+    setTravelMode(mode);
+    recalculateRoutes(originCoords || userLocation || [108.3073, -6.4745], destinationCoords, mode);
+  }, [originCoords, userLocation, destinationCoords, recalculateRoutes]);
+
+  // Select Alternative Route by tapping dashed polyline on map
+  const handleSelectAltRoute = useCallback(() => {
+    setSelectedRoute((prev) => (prev === 'safe' ? 'fast' : 'safe'));
+  }, []);
+
   // Handlers for State 2: Route Preview
   const handleCancelPreview = useCallback(() => {
     setMapFlowState('idle_explore');
@@ -177,7 +489,46 @@ export function NavigationHomeScreen() {
 
   const handleStartNavigation = useCallback(() => {
     setMapFlowState('active_navigation');
-    setIsTilt3D(true); // Automatically switch to 3D perspective during navigation
+    setIsTilt3D(true);
+    setActiveNavStepIndex(0);
+    setIsSimulatingNav(false);
+  }, []);
+
+  // Simulation Hook: Advance along road coordinates when simulation is active
+  useEffect(() => {
+    if (mapFlowState !== 'active_navigation' || !isSimulatingNav) return;
+    const coords = activeRouteCoords;
+    if (!coords || coords.length === 0) return;
+
+    let simIdx = 0;
+    const interval = setInterval(() => {
+      simIdx++;
+      if (simIdx < coords.length) {
+        const current = coords[simIdx];
+        setUserLocation(current);
+        setMapCenter(current);
+
+        const steps = activeRouteData?.steps;
+        if (steps && steps.length > 0) {
+          const ratio = simIdx / coords.length;
+          const targetStep = Math.min(
+            steps.length - 1,
+            Math.floor(ratio * steps.length)
+          );
+          setActiveNavStepIndex(targetStep);
+        }
+      } else {
+        clearInterval(interval);
+        setIsSimulatingNav(false);
+        setIsArrivalModalVisible(true);
+      }
+    }, 1400);
+
+    return () => clearInterval(interval);
+  }, [mapFlowState, isSimulatingNav, activeRouteCoords, activeRouteData]);
+
+  const handleToggleSimulation = useCallback(() => {
+    setIsSimulatingNav((prev) => !prev);
   }, []);
 
   // Handlers for State 3: Active Turn-by-Turn Navigation
@@ -273,8 +624,26 @@ export function NavigationHomeScreen() {
 
   // Map Controls
   const handleRecenter = useCallback(() => {
-    Alert.alert('Lokasi Terpusat', 'Posisi GPS Anda dikalibrasi ke pusat peta (akurasi ±3 meter).');
-  }, []);
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
+          setUserLocation(coords);
+          setMapCenter([...coords]);
+          if (mapFlowState !== 'idle_explore') {
+            recalculateRoutes(coords, destinationCoords, travelMode);
+          }
+        },
+        (err) => {
+          console.warn('Recenter geolocation error:', err);
+          if (userLocation) setMapCenter([...userLocation]);
+        },
+        { enableHighAccuracy: true, timeout: 6000 }
+      );
+    } else if (userLocation) {
+      setMapCenter([...userLocation]);
+    }
+  }, [destinationCoords, recalculateRoutes, travelMode, userLocation, mapFlowState]);
 
   const handleToggleTilt = useCallback(() => {
     setIsTilt3D((prev) => !prev);
@@ -291,7 +660,7 @@ export function NavigationHomeScreen() {
   // Bottom Navigation Bar Handler
   const handleTabPress = useCallback((tabId: DashboardTabId) => {
     if (tabId === 'routes') {
-      setMapFlowState('idle_explore');
+      setMapFlowState('route_preview');
     } else if (tabId === 'radar') {
       router.push('/radar');
     } else if (tabId === 'feed') {
@@ -311,7 +680,11 @@ export function NavigationHomeScreen() {
       {/* ================= 1. FULL BACKGROUND GIS SATELLITE MAP ================= */}
       <View style={styles.mapCanvasWrapper}>
         <NavigationMapCanvas
+          center={mapCenter}
           selectedRoute={selectedRoute}
+          routeCoordinates={activeRouteCoords}
+          altRouteCoordinates={altRouteCoords}
+          userLocation={userLocation}
           isTilt3D={isTilt3D}
           isCctvLayerActive={isCctvLayerActive}
           onRecenter={handleRecenter}
@@ -319,7 +692,10 @@ export function NavigationHomeScreen() {
           onToggleCctvLayer={handleToggleCctvLayer}
           onOpenLayersModal={handleOpenLayersModal}
           onPinPress={handlePinPress}
+          onMapPress={handleMapPress}
           showSafeRoute={mapFlowState !== 'idle_explore'}
+          droppedPinCoords={selectedMapPin}
+          onSelectAltRoute={handleSelectAltRoute}
           pitch={mapFlowState === 'active_navigation' ? 58 : isTilt3D ? 52 : 0}
           bearing={mapFlowState === 'active_navigation' ? -20 : isTilt3D ? -20 : 0}
           zoom={mapFlowState === 'active_navigation' ? 16.2 : mapFlowState === 'route_preview' ? 15.2 : 14.8}
@@ -336,18 +712,73 @@ export function NavigationHomeScreen() {
 
       {/* ================= 2. KONDISI 1: IDLE / EXPLORE (STANDBY PETA) ================= */}
       {mapFlowState === 'idle_explore' && (
-        <View style={[styles.idleTopOverlay, { paddingTop: safeTop + 8 }]} pointerEvents="box-none">
-          <QuickCommuteSearch
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            onSubmitSearch={handleSearchSubmit}
-            onPressSearchInput={handleOpenSearchModal}
-            onChipPress={handleChipPress}
-            onFilterPress={handleOpenLayersModal}
-            onNotificationPress={() => setIsNotifModalVisible(true)}
-            hasUnreadNotifications={hasUnread}
-          />
-        </View>
+        <>
+          <View style={[styles.idleTopOverlay, { paddingTop: safeTop + 8 }]} pointerEvents="box-none">
+            <QuickCommuteSearch
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              onSubmitSearch={handleSearchSubmit}
+              onPressSearchInput={handleOpenSearchModal}
+              onChipPress={handleChipPress}
+              onFilterPress={handleOpenLayersModal}
+              onNotificationPress={() => setIsNotifModalVisible(true)}
+              hasUnreadNotifications={hasUnread}
+            />
+          </View>
+
+          {/* Dropped Pin Place Card ala Google Maps */}
+          {selectedMapPin && (
+            <View style={[styles.droppedPinCard, { bottom: safeBottom + 65 }]}>
+              <View style={styles.droppedPinLeft}>
+                <Text style={styles.droppedPinTitle}>Titik Pilihan di Peta</Text>
+                <Text style={styles.droppedPinSub}>
+                  {selectedMapPin[1].toFixed(4)}, {selectedMapPin[0].toFixed(4)} • Ketuk Rute untuk mulai
+                </Text>
+              </View>
+              <View style={styles.droppedPinActions}>
+                <TouchableOpacity
+                  style={styles.directionsPinBtn}
+                  onPress={handleRouteToDroppedPin}
+                  activeOpacity={0.85}
+                  accessibilityLabel="Tampilkan rute ke titik pilihan"
+                >
+                  <DirectionsDiamondIcon size={18} color="#FFFFFF" />
+                  <Text style={styles.directionsPinBtnText}>Rute</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.startDirectPinBtn}
+                  onPress={handleStartDirectToDroppedPin}
+                  activeOpacity={0.85}
+                  accessibilityLabel="Mulai navigasi langsung ke titik pilihan"
+                >
+                  <Text style={styles.startDirectPinBtnText}>Mulai</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.closePinBtn}
+                  onPress={() => setSelectedMapPin(null)}
+                >
+                  <Text style={styles.closePinBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Google Maps Floating Directions FAB */}
+          {!selectedMapPin && (
+            <TouchableOpacity
+              style={[styles.directionsFab, { bottom: safeBottom + 68 }]}
+              onPress={() => {
+                recalculateRoutes(originCoords || userLocation || [108.3073, -6.4745], destinationCoords, travelMode);
+                setMapFlowState('route_preview');
+              }}
+              activeOpacity={0.88}
+              accessibilityLabel="Buka Petunjuk Arah"
+            >
+              <DirectionsDiamondIcon size={20} color="#FFFFFF" />
+              <Text style={styles.directionsFabText}>Rute</Text>
+            </TouchableOpacity>
+          )}
+        </>
       )}
 
       {/* ================= 3. KONDISI 2: ROUTE PREVIEW (PILIH RUTE) ================= */}
@@ -367,26 +798,46 @@ export function NavigationHomeScreen() {
 
               <View style={styles.pointsColumn}>
                 <View style={styles.pointRow}>
-                  <View style={styles.originDot} />
+                  <View style={[styles.originDot, { backgroundColor: '#2563EB' }]} />
                   <Text style={styles.pointText} numberOfLines={1}>
-                    Lokasi Saya (Jatibarang, Indramayu)
+                    {originName === 'Lokasi Anda'
+                      ? locationStatus === 'ready' && userLocation
+                        ? `Lokasi Anda (GPS: ${userLocation[1].toFixed(4)}, ${userLocation[0].toFixed(4)})`
+                        : 'Lokasi Anda (Mendeteksi GPS...)'
+                      : originName}
                   </Text>
                 </View>
                 <View style={styles.pointsDivider} />
-                <View style={styles.pointRow}>
-                  <View style={styles.destDot} />
+                <TouchableOpacity
+                  style={styles.pointRow}
+                  onPress={handleOpenSearchModal}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Ubah tujuan perjalanan"
+                >
+                  <View style={[styles.destDot, { backgroundColor: '#EF4444' }]} />
                   <Text style={[styles.pointText, styles.destText]} numberOfLines={1}>
                     {destinationName}
                   </Text>
-                </View>
+                  <Text style={styles.changeDestHint}>Ubah ✎</Text>
+                </TouchableOpacity>
               </View>
+
+              {/* Swap Origin/Dest Button */}
+              <TouchableOpacity
+                style={styles.swapPointsBtn}
+                onPress={handleSwapPoints}
+                activeOpacity={0.7}
+                accessibilityLabel="Tukar titik asal dan tujuan"
+              >
+                <SwapIcon size={16} />
+              </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.cancelTextBtn}
                 onPress={handleCancelPreview}
                 activeOpacity={0.7}
               >
-                <Text style={styles.cancelTextBtnLabel}>Batal</Text>
+                <Text style={styles.cancelTextBtnLabel}>Tutup</Text>
               </TouchableOpacity>
             </View>
 
@@ -394,23 +845,23 @@ export function NavigationHomeScreen() {
             <View style={styles.travelModeRow}>
               <TouchableOpacity
                 style={[styles.modeTab, travelMode === 'walk' && styles.modeTabActive]}
-                onPress={() => setTravelMode('walk')}
+                onPress={() => handleSelectTravelMode('walk')}
                 activeOpacity={0.75}
               >
                 <WalkingIcon size={16} color={travelMode === 'walk' ? '#0B0F19' : DashboardTheme.colors.textSecondary} />
                 <Text style={[styles.modeTabLabel, travelMode === 'walk' && styles.modeTabLabelActive]}>
-                  Jalan Kaki • 14 mnt
+                  Jalan Kaki • {safeRouteData?.durationMin ?? 14} mnt
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.modeTab, travelMode === 'motor' && styles.modeTabActive]}
-                onPress={() => setTravelMode('motor')}
+                onPress={() => handleSelectTravelMode('motor')}
                 activeOpacity={0.75}
               >
                 <MotorcycleIcon size={16} color={travelMode === 'motor' ? '#0B0F19' : DashboardTheme.colors.textSecondary} />
                 <Text style={[styles.modeTabLabel, travelMode === 'motor' && styles.modeTabLabelActive]}>
-                  Motor • 7 mnt
+                  Motor • {fastRouteData?.durationMin ?? 6} mnt
                 </Text>
               </TouchableOpacity>
             </View>
@@ -423,6 +874,11 @@ export function NavigationHomeScreen() {
               onSelectRoute={setSelectedRoute}
               onShareTrip={handleShareTrip}
               onStartNavigation={handleStartNavigation}
+              travelMode={travelMode}
+              safeDurationMin={safeRouteData?.durationMin ?? (travelMode === 'walk' ? 14 : 6)}
+              safeDistanceKm={safeRouteData?.distanceKm ?? (travelMode === 'walk' ? 2.1 : 2.5)}
+              fastDurationMin={fastRouteData?.durationMin ?? (travelMode === 'walk' ? 10 : 4)}
+              fastDistanceKm={fastRouteData?.distanceKm ?? (travelMode === 'walk' ? 1.8 : 2.0)}
               isNavigating={false}
             />
           </View>
@@ -444,7 +900,11 @@ export function NavigationHomeScreen() {
 
             {/* Big Green Turn-by-Turn Card */}
             <View style={styles.cardSpacing}>
-              <TurnByTurnCard />
+              <TurnByTurnCard
+                step={activeRouteData?.steps?.[activeNavStepIndex]}
+                stepIndex={activeNavStepIndex}
+                totalSteps={activeRouteData?.steps?.length || 1}
+              />
             </View>
 
             {/* Spatial Hazard Alert Banner (Conditional) */}
@@ -468,19 +928,37 @@ export function NavigationHomeScreen() {
             {/* Left Trip Telemetry */}
             <View style={styles.cockpitMetricsCol}>
               <View style={styles.cockpitEtaRow}>
-                <Text style={styles.cockpitEtaMinutes}>14</Text>
+                <Text style={styles.cockpitEtaMinutes}>
+                  {activeRouteData?.durationMin ?? (travelMode === 'walk' ? 14 : 6)}
+                </Text>
                 <Text style={styles.cockpitEtaUnit}>mnt</Text>
-                <Text style={styles.cockpitSubtext}>• 2.4 km • Tiba 21:44</Text>
+                <Text style={styles.cockpitSubtext}>
+                  • {activeRouteData?.distanceKm ?? 2.1} km • {destinationName}
+                </Text>
               </View>
               <View style={styles.cockpitSafetyBadge}>
                 <Text style={styles.cockpitSafetyBadgeText}>
-                  🛡️ 4 CCTV & 3 Patroller Siaga
+                  {selectedRoute === 'safe'
+                    ? '🛡️ Skor 96/100 • Jalur Terang & Aman'
+                    : '⚡ Rute Cepat • Jalur Alternatif'}
                 </Text>
               </View>
             </View>
 
-            {/* Right Action Group: SOS & Exit */}
+            {/* Right Action Group: Simulation, SOS & Exit */}
             <View style={styles.cockpitActionsRow}>
+              {/* Simulation Play/Pause Button for interactive demo */}
+              <TouchableOpacity
+                style={[styles.cockpitSimBtn, isSimulatingNav && styles.cockpitSimBtnActive]}
+                onPress={handleToggleSimulation}
+                activeOpacity={0.8}
+                accessibilityLabel="Simulasi pergerakan rute"
+              >
+                <Text style={[styles.cockpitSimText, isSimulatingNav && styles.cockpitSimTextActive]}>
+                  {isSimulatingNav ? '⏸ Jeda' : '▶ Simulasi'}
+                </Text>
+              </TouchableOpacity>
+
               {/* Discreet SOS Button */}
               <TouchableOpacity
                 style={styles.cockpitSosBtn}
@@ -698,7 +1176,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   modeTabActive: {
-    backgroundColor: DashboardTheme.colors.primary,
+    backgroundColor: DashboardTheme.colors.primaryContainer,
   },
   modeTabLabel: {
     fontSize: 12,
@@ -796,6 +1274,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  cockpitSimBtn: {
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  cockpitSimBtnActive: {
+    backgroundColor: '#0284C7',
+    borderColor: '#38BDF8',
+  },
+  cockpitSimText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#E2E8F0',
+  },
+  cockpitSimTextActive: {
+    color: '#FFFFFF',
+  },
   cockpitSosBtn: {
     width: 42,
     height: 42,
@@ -824,5 +1322,124 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+  /* Google Maps Style Directions FAB */
+  directionsFab: {
+    position: 'absolute',
+    right: 18,
+    backgroundColor: '#0284C7',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 13,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    zIndex: 40,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  directionsFabText: {
+    color: '#FFFFFF',
+    fontSize: 14.5,
+    fontWeight: '800',
+  },
+  /* Google Maps Style Dropped Pin Bottom Card */
+  droppedPinCard: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    zIndex: 45,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  droppedPinLeft: {
+    flex: 1,
+    marginRight: 10,
+  },
+  droppedPinTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  droppedPinSub: {
+    fontSize: 11.5,
+    color: '#64748B',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  droppedPinActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  directionsPinBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#0284C7',
+    paddingVertical: 9,
+    paddingHorizontal: 13,
+    borderRadius: 999,
+  },
+  directionsPinBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  startDirectPinBtn: {
+    backgroundColor: '#16A34A',
+    paddingVertical: 9,
+    paddingHorizontal: 13,
+    borderRadius: 999,
+  },
+  startDirectPinBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  closePinBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  closePinBtnText: {
+    color: '#64748B',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  swapPointsBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  changeDestHint: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0284C7',
+    marginLeft: 'auto',
   },
 });

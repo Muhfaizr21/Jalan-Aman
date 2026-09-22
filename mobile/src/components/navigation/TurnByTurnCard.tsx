@@ -3,9 +3,13 @@ import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { DashboardTheme } from '@/constants/dashboardTheme';
 import { TurnInstructionData } from '@/types/navigation';
+import { RouteStep } from '@/services/routingService';
 
 interface TurnByTurnCardProps {
   instructionData?: TurnInstructionData;
+  step?: RouteStep;
+  stepIndex?: number;
+  totalSteps?: number;
 }
 
 const DEFAULT_INSTRUCTION: TurnInstructionData = {
@@ -18,7 +22,7 @@ const DEFAULT_INSTRUCTION: TurnInstructionData = {
 };
 
 /* Maneuver Turn Right Icon */
-function TurnRightIcon({ size = 26, color = DashboardTheme.colors.onPrimaryContainer }: { size?: number; color?: string }) {
+function TurnRightIcon({ size = 26, color = '#0B0F19' }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -39,14 +43,58 @@ function TurnRightIcon({ size = 26, color = DashboardTheme.colors.onPrimaryConta
   );
 }
 
+/* Maneuver Turn Left Icon */
+function TurnLeftIcon({ size = 26, color = '#0B0F19' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M18 19v-7a3 3 0 00-3-3H6"
+        stroke={color}
+        strokeWidth={3}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M10 5L6 9l4 4"
+        stroke={color}
+        strokeWidth={3}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 /* Straight Navigation Icon */
-function StraightIcon({ size = 15, color = DashboardTheme.colors.textSecondary }: { size?: number; color?: string }) {
+function StraightIcon({ size = 24, color = '#0B0F19' }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
         d="M12 19V5M5 12l7-7 7 7"
         stroke={color}
-        strokeWidth={2.4}
+        strokeWidth={2.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+/* U-Turn Icon */
+function UTurnIcon({ size = 24, color = '#0B0F19' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M17 19V8.5a4.5 4.5 0 00-9 0V19"
+        stroke={color}
+        strokeWidth={3}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M12 15l-4 4-4-4"
+        stroke={color}
+        strokeWidth={3}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -83,7 +131,37 @@ function VerifiedShieldIcon({ size = 16, color = DashboardTheme.colors.primary }
  */
 export const TurnByTurnCard: React.FC<TurnByTurnCardProps> = ({
   instructionData = DEFAULT_INSTRUCTION,
+  step,
+  stepIndex,
+  totalSteps,
 }) => {
+  // Resolve instruction details from step if present
+  let distanceVal = instructionData.distance;
+  let distanceUnit = instructionData.unit;
+  let instructionText = instructionData.instruction;
+  let nextStepText = instructionData.nextStep;
+  let modifier = '';
+
+  if (step) {
+    if (step.distanceMeters >= 1000) {
+      distanceVal = parseFloat((step.distanceMeters / 1000).toFixed(1));
+      distanceUnit = 'km';
+    } else {
+      distanceVal = Math.round(step.distanceMeters);
+      distanceUnit = 'm';
+    }
+    instructionText = step.instruction;
+    nextStepText = step.nextStep || 'Tetap di jalur berlampu penerangan PJU';
+    modifier = (step.modifier || '').toLowerCase();
+  }
+
+  const renderManeuverIcon = () => {
+    if (modifier.includes('left')) return <TurnLeftIcon size={26} />;
+    if (modifier.includes('right')) return <TurnRightIcon size={26} />;
+    if (modifier.includes('u-turn') || modifier.includes('uturn')) return <UTurnIcon size={24} />;
+    return <StraightIcon size={26} />;
+  };
+
   return (
     <View style={styles.cardContainer}>
       {/* Top Maneuver Row */}
@@ -181,6 +259,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: DashboardTheme.colors.textSecondary,
+  },
+  stepBadge: {
+    backgroundColor: '#E0E7FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  stepBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#3730A3',
   },
   instructionText: {
     fontSize: 15,

@@ -21,10 +21,15 @@ interface CirclegeoGisMapProps {
   bearing?: number;
   showSafeRoute?: boolean;
   routeCoordinates?: [number, number][];
+  altRouteCoordinates?: [number, number][];
+  userLocation?: [number, number] | null;
+  droppedPinCoords?: [number, number] | null;
   markers?: GisMarkerItem[];
   showCctvLayer?: boolean;
   autoRotate?: boolean;
   onPinPress?: (name: string, detail: string) => void;
+  onMapPress?: (coords: [number, number]) => void;
+  onSelectAltRoute?: () => void;
   children?: React.ReactNode;
 }
 
@@ -94,16 +99,22 @@ export const CirclegeoGisMap: React.FC<CirclegeoGisMapProps> = ({
   bearing = -15,
   showSafeRoute = true,
   routeCoordinates = DEFAULT_INDRAMAYU_ROUTE,
+  altRouteCoordinates = [],
+  userLocation = null,
+  droppedPinCoords = null,
   markers = DEFAULT_GIS_MARKERS,
   showCctvLayer = true,
   autoRotate = false,
   onPinPress,
+  onMapPress,
+  onSelectAltRoute,
   children,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerInstancesRef = useRef<maplibregl.Marker[]>([]);
   const isLoadedRef = useRef(false);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   // Inject MapLibre stylesheet into <head> once
   useEffect(() => {
@@ -150,90 +161,183 @@ export const CirclegeoGisMap: React.FC<CirclegeoGisMapProps> = ({
         console.warn('MapLibre event:', e.error?.message || e);
       });
 
-      map.on('load', () => {
+      let isMapReadyFired = false;
+      const onMapReady = () => {
+        if (isMapReadyFired) return;
+        isMapReadyFired = true;
         isLoadedRef.current = true;
+        setMapLoaded(true);
         map.resize();
 
-        // 1. Add Safe Corridor Route
-        if (showSafeRoute && routeCoordinates.length > 1) {
-          try {
-            map.addSource('jalanaman-route', {
-              type: 'geojson',
-              data: {
-                type: 'Feature',
-                properties: {},
-                geometry: {
-                  type: 'LineString',
-                  coordinates: routeCoordinates,
-                },
-              },
-            });
+        // 1. Always Add Safe Corridor Route Sources & Layers
+        try {
+          const initialRouteData = (showSafeRoute && routeCoordinates.length > 1) ? {
+            type: 'Feature',
+            properties: {},
+            geometry: { type: 'LineString', coordinates: routeCoordinates }
+          } : { type: 'FeatureCollection', features: [] };
 
-            // Outer Neon Green Glow
-            map.addLayer({
-              id: 'route-halo-glow',
-              type: 'line',
-              source: 'jalanaman-route',
-              layout: { 'line-cap': 'round', 'line-join': 'round' },
-              paint: {
-                'line-color': '#10B981',
-                'line-width': 12,
-                'line-opacity': 0.45,
-                'line-blur': 6,
-              },
-            });
+          const originCoords = userLocation || (showSafeRoute && routeCoordinates.length > 1 ? routeCoordinates[0] : null);
+          const initialOriginData = originCoords ? {
+            type: 'Feature',
+            properties: {},
+            geometry: { type: 'Point', coordinates: originCoords }
+          } : { type: 'FeatureCollection', features: [] };
 
-            // Bright Core Safe Route
-            map.addLayer({
-              id: 'route-core-line',
-              type: 'line',
-              source: 'jalanaman-route',
-              layout: { 'line-cap': 'round', 'line-join': 'round' },
-              paint: {
-                'line-color': '#A3E635',
-                'line-width': 4.2,
-                'line-opacity': 0.98,
-              },
-            });
+          // Alternative Route (Grey Dashed / Secondary Corridor)
+          map.addSource('jalanaman-route-alt', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] },
+          });
 
-            // Animated / glowing origin pulse
-            map.addSource('route-user-origin', {
-              type: 'geojson',
-              data: {
-                type: 'Feature',
-                properties: {},
-                geometry: {
-                  type: 'Point',
-                  coordinates: routeCoordinates[0],
-                },
-              },
-            });
+          map.addLayer({
+            id: 'route-alt-line',
+            type: 'line',
+            source: 'jalanaman-route-alt',
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': '#64748B',
+              'line-width': 4.5,
+              'line-opacity': 0.65,
+              'line-dasharray': [2, 1.5],
+            },
+          });
 
-            map.addLayer({
-              id: 'origin-pulse-outer',
-              type: 'circle',
-              source: 'route-user-origin',
-              paint: {
-                'circle-radius': 14,
-                'circle-color': '#A3E635',
-                'circle-opacity': 0.35,
-              },
-            });
+          map.addSource('jalanaman-route', {
+            type: 'geojson',
+            data: initialRouteData as any,
+          });
 
-            map.addLayer({
-              id: 'origin-pulse-core',
-              type: 'circle',
-              source: 'route-user-origin',
-              paint: {
-                'circle-radius': 6,
-                'circle-color': '#FFFFFF',
-                'circle-stroke-width': 3,
-                'circle-stroke-color': '#65A30D',
-              },
-            });
-          } catch (e) {
-            console.warn('Could not add GIS route layers:', e);
-          }
+          // Outer Neon Green Glow
+          map.addLayer({
+            id: 'route-halo-glow',
+            type: 'line',
+            source: 'jalanaman-route',
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': '#10B981',
+              'line-width': 12,
+              'line-opacity': 0.45,
+              'line-blur': 6,
+            },
+          });
+
+          // Bright Core Safe Route
+          map.addLayer({
+            id: 'route-core-line',
+            type: 'line',
+            source: 'jalanaman-route',
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': '#A3E635',
+              'line-width': 4.2,
+              'line-opacity': 0.98,
+            },
+          });
+
+          // Animated / glowing origin pulse
+          map.addSource('route-user-origin', {
+            type: 'geojson',
+            data: initialOriginData as any,
+          });
+
+          map.addLayer({
+            id: 'origin-pulse-outer',
+            type: 'circle',
+            source: 'route-user-origin',
+            paint: {
+              'circle-radius': 16,
+              'circle-color': '#3B82F6', // Blue GPS
+              'circle-opacity': 0.35,
+            },
+          });
+
+          map.addLayer({
+            id: 'origin-pulse-core',
+            type: 'circle',
+            source: 'route-user-origin',
+            paint: {
+              'circle-radius': 7,
+              'circle-color': '#FFFFFF',
+              'circle-stroke-width': 3,
+              'circle-stroke-color': '#2563EB', // Blue GPS Stroke
+            },
+          });
+
+          // Destination Pin marker source & layers
+          const destCoords = (showSafeRoute && routeCoordinates.length > 1) 
+            ? routeCoordinates[routeCoordinates.length - 1] 
+            : null;
+          const initialDestData = destCoords ? {
+            type: 'Feature',
+            properties: {},
+            geometry: { type: 'Point', coordinates: destCoords }
+          } : { type: 'FeatureCollection', features: [] };
+
+          map.addSource('route-destination', {
+            type: 'geojson',
+            data: initialDestData as any,
+          });
+
+          map.addLayer({
+            id: 'dest-pin-outer',
+            type: 'circle',
+            source: 'route-destination',
+            paint: {
+              'circle-radius': 15,
+              'circle-color': '#EF4444',
+              'circle-opacity': 0.35,
+            },
+          });
+
+          map.addLayer({
+            id: 'dest-pin-core',
+            type: 'circle',
+            source: 'route-destination',
+            paint: {
+              'circle-radius': 7,
+              'circle-color': '#DC2626',
+              'circle-stroke-width': 3,
+              'circle-stroke-color': '#FFFFFF',
+            },
+          });
+
+          // Dropped Pin on Map Tap (Google Maps Red Pin Marker)
+          const initialDroppedData = droppedPinCoords ? {
+            type: 'Feature',
+            properties: {},
+            geometry: { type: 'Point', coordinates: droppedPinCoords }
+          } : { type: 'FeatureCollection', features: [] };
+
+          map.addSource('jalanaman-dropped-pin', {
+            type: 'geojson',
+            data: initialDroppedData as any,
+          });
+
+          map.addLayer({
+            id: 'dropped-pin-outer',
+            type: 'circle',
+            source: 'jalanaman-dropped-pin',
+            paint: {
+              'circle-radius': 18,
+              'circle-color': '#EF4444',
+              'circle-opacity': 0.35,
+            },
+          });
+
+          map.addLayer({
+            id: 'dropped-pin-core',
+            type: 'circle',
+            source: 'jalanaman-dropped-pin',
+            paint: {
+              'circle-radius': 8,
+              'circle-color': '#DC2626',
+              'circle-stroke-width': 3.2,
+              'circle-stroke-color': '#FFFFFF',
+            },
+          });
+        } catch (e) {
+          console.warn('Could not add GIS route layers:', e);
         }
 
         // 2. Render Markers
@@ -251,6 +355,29 @@ export const CirclegeoGisMap: React.FC<CirclegeoGisMapProps> = ({
           };
           animId = requestAnimationFrame(step);
         }
+      };
+
+      map.on('style.load', onMapReady);
+      map.on('idle', onMapReady);
+      map.on('load', onMapReady);
+
+      const handleMapClick = (e: maplibregl.MapMouseEvent) => {
+        if (onMapPress) {
+          onMapPress([e.lngLat.lng, e.lngLat.lat]);
+        }
+      };
+      map.on('click', handleMapClick);
+
+      // Alternative route click to toggle route
+      map.on('click', 'route-alt-line', (e) => {
+        e.originalEvent.stopPropagation();
+        if (onSelectAltRoute) onSelectAltRoute();
+      });
+      map.on('mouseenter', 'route-alt-line', () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+      map.on('mouseleave', 'route-alt-line', () => {
+        map.getCanvas().style.cursor = '';
       });
 
       const resizeObserver = new ResizeObserver(() => {
@@ -298,6 +425,130 @@ export const CirclegeoGisMap: React.FC<CirclegeoGisMapProps> = ({
       renderMarkers(mapRef.current, markers, showCctvLayer, onPinPress);
     }
   }, [markers, showCctvLayer, onPinPress]);
+
+  // Update dynamic route coordinates when they change or when map switches states
+  useEffect(() => {
+    if (!mapRef.current || !isLoadedRef.current) return;
+    const map = mapRef.current;
+
+    const updateSource = (sourceId: string, data: any) => {
+      if (!mapRef.current || !isLoadedRef.current) return;
+      const map = mapRef.current;
+      const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
+      if (source && source.setData) {
+        source.setData(data);
+      }
+    };
+
+    // If map isn't ready yet, don't try to update sources.
+    if (!mapLoaded || !isLoadedRef.current) return;
+
+    if (showSafeRoute && routeCoordinates.length > 1) {
+      const routeData = {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: routeCoordinates,
+        },
+      };
+      
+      const originCoords = userLocation || routeCoordinates[0];
+      const originData = {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Point',
+          coordinates: originCoords,
+        },
+      };
+
+      const destCoords = routeCoordinates[routeCoordinates.length - 1];
+      const destData = {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Point',
+          coordinates: destCoords,
+        },
+      };
+
+      updateSource('jalanaman-route', routeData);
+      updateSource('route-user-origin', originData);
+      updateSource('route-destination', destData);
+
+      // Render Alternative Route if provided (in grey behind primary route)
+      if (altRouteCoordinates && altRouteCoordinates.length > 1) {
+        updateSource('jalanaman-route-alt', {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: altRouteCoordinates,
+          },
+        });
+      } else {
+        updateSource('jalanaman-route-alt', { type: 'FeatureCollection', features: [] });
+      }
+
+      // In 3D Cockpit mode (pitch > 35), camera focuses on user position heading forward
+      if (pitch > 35) {
+        const focusPoint = userLocation || routeCoordinates[0];
+        if (focusPoint) {
+          map.easeTo({
+            center: focusPoint,
+            zoom: zoom || 16.5,
+            pitch: pitch,
+            bearing: bearing,
+            duration: 600,
+          });
+        }
+      } else {
+        // In 2D Route Preview, smoothly fit the map bounds to frame both user and destination
+        try {
+          const bounds = new maplibregl.LngLatBounds(routeCoordinates[0], routeCoordinates[0]);
+          routeCoordinates.forEach((c) => bounds.extend(c));
+          if (altRouteCoordinates) altRouteCoordinates.forEach((c) => bounds.extend(c));
+          if (userLocation) bounds.extend(userLocation);
+          map.fitBounds(bounds, {
+            padding: { top: 90, bottom: 250, left: 60, right: 60 },
+            maxZoom: 16.5,
+            duration: 900,
+          });
+        } catch (err) {
+          console.warn('fitBounds error:', err);
+        }
+      }
+    } else {
+      // Clear the route when not showing
+      const emptyData = { type: 'FeatureCollection', features: [] };
+      updateSource('jalanaman-route', emptyData);
+      updateSource('jalanaman-route-alt', emptyData);
+      updateSource('route-destination', emptyData);
+      
+      // But keep showing user location if we have it!
+      if (userLocation) {
+        updateSource('route-user-origin', {
+          type: 'Feature',
+          properties: {},
+          geometry: { type: 'Point', coordinates: userLocation },
+        });
+      } else {
+        updateSource('route-user-origin', emptyData);
+      }
+    }
+
+    // Always update dropped pin (for idle_explore & pin drop)
+    if (droppedPinCoords) {
+      updateSource('jalanaman-dropped-pin', {
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'Point', coordinates: droppedPinCoords },
+      });
+    } else {
+      updateSource('jalanaman-dropped-pin', { type: 'FeatureCollection', features: [] });
+    }
+  }, [routeCoordinates, altRouteCoordinates, showSafeRoute, userLocation, droppedPinCoords, mapLoaded, pitch, bearing, zoom]);
 
   const renderMarkers = (
     map: maplibregl.Map,
